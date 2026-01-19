@@ -166,6 +166,49 @@ function convertDataTablesToMarkdown($: cheerio.CheerioAPI): void {
 }
 
 /**
+ * Detects if HTML is from Google Docs based on class patterns
+ */
+function isGoogleDocsHtml(html: string): boolean {
+  // Google Docs uses class patterns like c1, c2, c11, c17, etc.
+  return /class="c\d+/.test(html) && /<p class="c\d+/.test(html);
+}
+
+/**
+ * Converts Google Docs class-based styling to semantic HTML
+ * Google Docs uses classes for formatting instead of semantic tags
+ */
+function convertGoogleDocsToSemanticHtml(html: string): string {
+  const $ = cheerio.load(html, { xml: false });
+  
+  // Find all spans with classes and check their computed styles or patterns
+  // Common Google Docs patterns:
+  // - Multiple classes often indicate bold: class="c17 c11" or class="c11 c31"
+  // - Look for font-weight in style attribute or common bold class patterns
+  
+  $("span").each((_, span) => {
+    const $span = $(span);
+    const classNames = $span.attr("class") || "";
+    const style = $span.attr("style") || "";
+    
+    // Check if this span represents bold text
+    const isBold = 
+      style.includes("font-weight:700") ||
+      style.includes("font-weight: 700") ||
+      style.includes("font-weight:bold") ||
+      /c\d+.*c\d+/.test(classNames) || // Multiple classes often = bold
+      /c1[0-9]/.test(classNames); // c11, c17, etc. are often bold in Google Docs
+    
+    if (isBold) {
+      // Wrap content in <strong> and replace the span
+      const content = $span.html();
+      $span.replaceWith(`<strong>${content}</strong>`);
+    }
+  });
+  
+  return $.html();
+}
+
+/**
  * Detects if HTML looks like it's from a spreadsheet (Google Sheets, Excel, etc.)
  */
 function isSpreadsheetContent(html: string): boolean {
@@ -206,8 +249,15 @@ function convertFirstRowToHeaders(html: string): string {
  */
 function cleanHtml(html: string): string {
   try {
+    // STEP 0: Convert Google Docs class-based styling to semantic HTML
+    let processedHtml = html;
+    if (isGoogleDocsHtml(html)) {
+      console.log("Detected Google Docs HTML, converting classes to semantic tags");
+      processedHtml = convertGoogleDocsToSemanticHtml(html);
+    }
+    
     // Load HTML with Cheerio (jQuery-like API for Node.js)
-    const $ = cheerio.load(html, {
+    const $ = cheerio.load(processedHtml, {
       xml: false,
     });
     
