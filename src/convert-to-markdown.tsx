@@ -166,42 +166,56 @@ function convertDataTablesToMarkdown($: cheerio.CheerioAPI): void {
 }
 
 /**
- * Detects if HTML is from Google Docs based on class patterns
+ * Detects if HTML needs style-to-semantic conversion
+ * Checks for Google Docs class patterns or inline font-weight styles
  */
-function isGoogleDocsHtml(html: string): boolean {
+function needsStyleConversion(html: string): boolean {
   // Google Docs uses class patterns like c1, c2, c11, c17, etc.
-  return /class="c\d+/.test(html) && /<p class="c\d+/.test(html);
+  const hasGoogleDocsClasses = /class="c\d+/.test(html);
+  
+  // Check for inline font-weight styles in spans
+  const hasInlineStyles = /<span[^>]*style="[^"]*font-weight/.test(html);
+  
+  return hasGoogleDocsClasses || hasInlineStyles;
 }
 
 /**
- * Converts Google Docs class-based styling to semantic HTML
- * Google Docs uses classes for formatting instead of semantic tags
+ * Converts inline style-based and class-based styling to semantic HTML
+ * Handles both Google Docs class patterns and inline font-weight styles
  */
-function convertGoogleDocsToSemanticHtml(html: string): string {
+function convertStylesToSemanticHtml(html: string): string {
   const $ = cheerio.load(html, { xml: false });
   
-  // Find all spans with classes and check their computed styles or patterns
-  // Common Google Docs patterns:
-  // - Multiple classes often indicate bold: class="c17 c11" or class="c11 c31"
-  // - Look for font-weight in style attribute or common bold class patterns
-  
+  // Process all spans to detect bold text from styles or classes
   $("span").each((_, span) => {
     const $span = $(span);
     const classNames = $span.attr("class") || "";
     const style = $span.attr("style") || "";
     
     // Check if this span represents bold text
+    // Covers: font-weight: 500, 600, 700, bold
     const isBold = 
-      style.includes("font-weight:700") ||
-      style.includes("font-weight: 700") ||
-      style.includes("font-weight:bold") ||
-      /c\d+.*c\d+/.test(classNames) || // Multiple classes often = bold
+      /font-weight\s*:\s*(500|600|700|bold)/.test(style) ||
+      /c\d+.*c\d+/.test(classNames) || // Multiple classes often = bold (Google Docs)
       /c1[0-9]/.test(classNames); // c11, c17, etc. are often bold in Google Docs
     
-    if (isBold) {
-      // Wrap content in <strong> and replace the span
+    // Check if this span represents italic text
+    const isItalic = 
+      /font-style\s*:\s*italic/.test(style) ||
+      classNames.includes("italic");
+    
+    if (isBold && !$span.parent().is("strong")) {
+      // Wrap content in <strong> and replace the span (if not already in <strong>)
       const content = $span.html();
       $span.replaceWith(`<strong>${content}</strong>`);
+    } else if (isItalic && !$span.parent().is("em, i")) {
+      // Wrap content in <em> and replace the span (if not already in <em>/<i>)
+      const content = $span.html();
+      $span.replaceWith(`<em>${content}</em>`);
+    } else if (!isBold && !isItalic && !style && !classNames) {
+      // Remove empty/useless spans with no formatting
+      const content = $span.html();
+      $span.replaceWith(content || "");
     }
   });
   
@@ -249,11 +263,11 @@ function convertFirstRowToHeaders(html: string): string {
  */
 function cleanHtml(html: string): string {
   try {
-    // STEP 0: Convert Google Docs class-based styling to semantic HTML
+    // STEP 0: Convert inline styles and classes to semantic HTML
     let processedHtml = html;
-    if (isGoogleDocsHtml(html)) {
-      console.log("Detected Google Docs HTML, converting classes to semantic tags");
-      processedHtml = convertGoogleDocsToSemanticHtml(html);
+    if (needsStyleConversion(html)) {
+      console.log("Detected styled HTML, converting to semantic tags");
+      processedHtml = convertStylesToSemanticHtml(html);
     }
     
     // Load HTML with Cheerio (jQuery-like API for Node.js)
