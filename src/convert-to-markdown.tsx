@@ -213,10 +213,14 @@ export default async function Command() {
       processedHtml = convertFirstRowToHeaders(htmlContent);
     }
 
-    // Clean the HTML
-    const cleanedHtml = cleanHtml(processedHtml);
+    // Only do minimal cleaning - just remove inline styles
+    const cleanedHtml = processedHtml
+      .replace(/\s+style="[^"]*"/gi, "")
+      .replace(/\s+style='[^']*'/gi, "")
+      .replace(/\s+class="[^"]*"/gi, "")
+      .replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
 
-    // Convert to Markdown
+    // Convert to Markdown - Turndown handles messy HTML well
     const markdown = convertToMarkdown(cleanedHtml);
 
     // Copy Markdown back to clipboard
