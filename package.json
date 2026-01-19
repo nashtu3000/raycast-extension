@@ -1,7 +1,7 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "clipboard-to-markdown",
-  "title": "Clipboard to Markdown",
+  "title": "Clipboard to Markdown Converter",
   "description": "Convert rich text clipboard content (from Sheets, Docs, websites) to clean Markdown",
   "icon": "icon.svg",
   "author": "alex",

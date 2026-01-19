@@ -1,4 +1,4 @@
-# Clipboard to Markdown
+# Clipboard to Markdown Converter
 
 A Raycast extension that converts rich text clipboard content from Google Sheets, Google Docs, websites, and other sources into clean Markdown format.
 
