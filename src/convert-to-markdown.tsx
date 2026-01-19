@@ -286,93 +286,57 @@ function cleanHtmlLightweight(html: string): string {
   // Remove inline styles
   cleaned = cleaned.replace(/\s+style="[^"]*"/gi, "");
   
-  // Remove classes except from specific elements we need
+  // Remove classes
   cleaned = cleaned.replace(/\s+class="[^"]*"/gi, "");
   
   // Remove data attributes
   cleaned = cleaned.replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
   
-  // Remove id attributes
+  // Remove id attributes  
   cleaned = cleaned.replace(/\s+id="[^"]*"/gi, "");
   
-  // Remove empty divs and spans
-  cleaned = cleaned.replace(/<(div|span)[^>]*>\s*<\/\1>/gi, "");
+  // Remove div tags (keep content)
+  cleaned = cleaned.replace(/<div[^>]*>/gi, "").replace(/<\/div>/gi, "\n");
+  
+  // Remove empty spans
+  cleaned = cleaned.replace(/<span[^>]*>\s*<\/span>/gi, "");
   
   return cleaned.trim();
 }
 
 /**
  * Cleans HTML using Cheerio for proper DOM manipulation
- * Detects and unwraps layout tables, converts data tables to Markdown
- * Removes wrapper divs, inline styles, and non-semantic attributes
- * Memory-optimized: uses lightweight processing for large documents
+ * For large documents, uses lightweight regex processing
  */
 function cleanHtml(html: string): string {
   try {
     const htmlSize = html.length;
     console.log(`Processing HTML: ${(htmlSize / 1024).toFixed(1)} KB`);
     
-    // For very large HTML (>300KB), use lightweight regex processing to avoid OOM
-    const isLargeDocument = htmlSize > 300 * 1024;
-    
-    if (isLargeDocument) {
-      console.log("Large document detected - using lightweight processing");
+    // For large HTML (>300KB), use lightweight regex processing to avoid OOM
+    if (htmlSize > 300 * 1024) {
+      console.log("Large document - using lightweight regex cleaning");
       return cleanHtmlLightweight(html);
     }
     
-    // Load HTML with Cheerio once (jQuery-like API for Node.js)
-    const $ = cheerio.load(html, {
-      xml: false,
-    });
+    // Normal processing for smaller documents
+    const $ = cheerio.load(html, { xml: false });
     
-    // STEP 0: Convert inline styles and classes to semantic HTML (in-place)
     if (needsStyleConversion(html)) {
-      console.log("Detected styled HTML, converting to semantic tags");
+      console.log("Converting styles to semantic tags");
       convertStylesToSemanticHtml($);
     }
     
-    // STEP 1: Unwrap layout tables (Google Docs wraps everything in tables)
     unwrapLayoutTables($);
-    
-    // STEP 2: Convert remaining data tables to Markdown
     convertDataTablesToMarkdown($);
     
-    // STEP 3: Remove all wrapper divs - unwrap their content but keep the children
-    $("div").each((i, elem) => {
-      $(elem).replaceWith($(elem).html() || "");
-    });
+    // Clean attributes
+    $("div").each((_, elem) => $(elem).replaceWith($(elem).html() || ""));
+    $("*").removeAttr("style").removeAttr("class").removeAttr("id");
     
-    // STEP 4: Remove inline styles from all elements
-    $("*").removeAttr("style");
-    
-    // STEP 5: Remove class attributes (except our markdown table marker)
-    $("*").each((i, elem) => {
-      const $elem = $(elem);
-      if (!$elem.attr("data-md-table")) {
-        $elem.removeAttr("class");
-      }
-    });
-    
-    // STEP 6: Remove data-* attributes (except our markdown table marker)
-    $("*").each((i, elem) => {
-      const attribs = $(elem).attr();
-      if (attribs) {
-        Object.keys(attribs).forEach((attr) => {
-          if (attr.startsWith("data-") && attr !== "data-md-table") {
-            $(elem).removeAttr(attr);
-          }
-        });
-      }
-    });
-    
-    // STEP 7: Remove id attributes (except from links for anchors)
-    $("*:not(a)").removeAttr("id");
-    
-    // Get the cleaned HTML
     return $.html().trim();
   } catch (error) {
-    console.error("Error cleaning HTML with Cheerio:", error);
-    // Fallback to lightweight cleaning
+    console.error("Error in cleanHtml:", error);
     return cleanHtmlLightweight(html);
   }
 }
