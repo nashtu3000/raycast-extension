@@ -122,12 +122,17 @@ function escapePipes(text: string): string {
 
 /**
  * Renders a 2D array as a Markdown table
+ * Handles empty cells and ensures proper formatting
  */
 function renderMarkdownTable(rows: string[][]): string {
   if (rows.length === 0) return "";
   
+  // Clean and escape all cells, replacing empty/whitespace-only cells with a space
   const escapedRows = rows.map((row) => 
-    row.map((cell) => escapePipes(cell.trim()))
+    row.map((cell) => {
+      const cleaned = cell.trim().replace(/^(&nbsp;|\s)+$/, "");
+      return cleaned ? escapePipes(cleaned) : " ";
+    })
   );
   
   const header = escapedRows[0];
@@ -140,7 +145,7 @@ function renderMarkdownTable(rows: string[][]): string {
     ...body.map((r) => `| ${r.join(" | ")} |`),
   ];
   
-  return lines.join("\n");
+  return "\n\n" + lines.join("\n") + "\n\n";
 }
 
 /**
@@ -369,10 +374,13 @@ function convertToMarkdown(html: string): string {
       );
     },
     replacement: (content: string) => {
-      // Return the Markdown table as-is, with proper spacing
-      return "\n\n" + content + "\n\n";
+      // Return the Markdown table as-is (already has spacing from renderMarkdownTable)
+      return content;
     },
   });
+  
+  // Remove Turndown's default table handling - we handle tables ourselves
+  turndownService.remove(["table"]);
 
   // Custom rule: Preserve line breaks
   turndownService.addRule("preserveLineBreaks", {
