@@ -283,50 +283,44 @@ function convertFirstRowToHeaders(html: string): string {
 function cleanHtmlLightweight(html: string): string {
   let cleaned = html;
   
-  // Step 1: Remove colgroup (causes issues with table parsing)
+  console.log("Running lightweight cleaning");
+  
+  // Step 1: Remove colgroup entirely
   cleaned = cleaned.replace(/<colgroup>.*?<\/colgroup>/gis, "");
   
-  // Step 2: Remove attributes first (makes subsequent processing easier)
-  cleaned = cleaned.replace(/\s+(style|class|id|dir|width)="[^"]*"/gi, "");
-  cleaned = cleaned.replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
+  // Step 2: Remove all attributes from all tags (aggressive but necessary)
+  cleaned = cleaned.replace(/<(\w+)\s+[^>]*>/g, "<$1>");
   
-  // Step 3: Remove nested p, span, and br tags from inside ALL elements
-  // Do this multiple times to handle deeply nested tags
-  for (let i = 0; i < 3; i++) {
-    cleaned = cleaned.replace(/<p>/gi, "").replace(/<\/p>/gi, " ");
-    cleaned = cleaned.replace(/<span>/gi, "").replace(/<\/span>/gi, "");
-    cleaned = cleaned.replace(/<br[\/\s]*>/gi, " ");
+  // Step 3: Remove nested wrapper tags that interfere with table recognition
+  // Remove p, span, and br tags completely (run multiple times for nested structures)
+  for (let i = 0; i < 5; i++) {
+    cleaned = cleaned.replace(/<p[^>]*>/gi, "");
+    cleaned = cleaned.replace(/<\/p>/gi, " ");
+    cleaned = cleaned.replace(/<span[^>]*>/gi, "");
+    cleaned = cleaned.replace(/<\/span>/gi, "");
+    cleaned = cleaned.replace(/<br[^>]*\/?>/gi, " ");
+    cleaned = cleaned.replace(/<div[^>]*>/gi, "");
+    cleaned = cleaned.replace(/<\/div>/gi, "");
   }
   
-  // Step 4: Clean up excessive whitespace in cells
-  cleaned = cleaned.replace(/<(td|th)>\s+/gi, "<$1>");
-  cleaned = cleaned.replace(/\s+<\/(td|th)>/gi, "</$1>");
+  // Step 4: Clean whitespace around cell content
+  cleaned = cleaned.replace(/<td>\s+/gi, "<td>");
+  cleaned = cleaned.replace(/\s+<\/td>/gi, "</td>");
+  cleaned = cleaned.replace(/<th>\s+/gi, "<th>");
+  cleaned = cleaned.replace(/\s+<\/th>/gi, "</th>");
   
-  // Step 5: Convert first row of each table to headers
-  cleaned = cleaned.replace(/<table>(.*?)<\/table>/gis, (match, tableContent) => {
-    // Find first row and convert td to th
-    const withHeaders = tableContent.replace(
-      /(<tbody>)?\s*<tr>(.*?)<\/tr>/is,
-      (rowMatch, tbody, firstRowContent) => {
-        // Convert all td to th in first row
-        const headerRow = firstRowContent
-          .replace(/<td>/gi, "<th>")
-          .replace(/<\/td>/gi, "</th>");
-        
-        // Wrap in thead
-        return `<thead><tr>${headerRow}</tr></thead><tbody>`;
-      }
-    );
-    
-    return `<table>${withHeaders}</table>`;
+  // Step 5: Convert first row to headers
+  cleaned = cleaned.replace(/<table><tbody><tr>/i, "<table><thead><tr>");
+  cleaned = cleaned.replace(/(<table><thead><tr>)(.*?)(<\/tr>)/is, (match, start, row, end) => {
+    const headerRow = row.replace(/<td>/gi, "<th>").replace(/<\/td>/gi, "</th>");
+    return start + headerRow + end + "</thead><tbody>";
   });
   
-  // Step 6: Remove div tags (keep content)
-  cleaned = cleaned.replace(/<div>/gi, "").replace(/<\/div>/gi, "\n");
+  // Step 6: Clean up multiple spaces/newlines
+  cleaned = cleaned.replace(/\s{2,}/g, " ");
+  cleaned = cleaned.replace(/>\s+</g, "><");
   
-  // Step 7: Clean up multiple spaces
-  cleaned = cleaned.replace(/\s\s+/g, " ");
-  
+  console.log("Lightweight cleaning complete");
   return cleaned.trim();
 }
 
