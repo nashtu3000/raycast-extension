@@ -3,6 +3,7 @@ import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 import { writeFileSync } from "fs";
 import { join } from "path";
+import { JSDOM } from "jsdom";
 
 /**
  * Detects if HTML looks like it's from a spreadsheet (Google Sheets, Excel, etc.)
@@ -39,34 +40,57 @@ function convertFirstRowToHeaders(html: string): string {
 }
 
 /**
- * Extracts actual semantic content from deeply nested wrapper divs
+ * Extracts semantic content using DOM parsing to handle nested wrappers properly
  */
 function cleanHtml(html: string): string {
-  // Find the actual content by looking for semantic tags
-  // Skip all wrapper divs and extract h1-h6, p, table, ul, ol elements
-  const contentPattern = /((?:<(?:h[1-6]|p|table|ul|ol|blockquote|pre)[\s\S]*?<\/(?:h[1-6]|p|table|ul|ol|blockquote|pre)>[\s\S]*?)+)/i;
-  const match = html.match(contentPattern);
-  
-  let cleaned = match ? match[1] : html;
-  
-  // If we still have wrapper divs, just remove them all
-  cleaned = cleaned.replace(/<div[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<\/div>/gi, "");
-  
-  // Remove inline style attributes  
-  cleaned = cleaned.replace(/\s+style="[^"]*"/gi, "");
-  cleaned = cleaned.replace(/\s+style='[^']*'/gi, "");
-  
-  // Remove class attributes
-  cleaned = cleaned.replace(/\s+class="[^"]*"/gi, "");
-  
-  // Remove data attributes
-  cleaned = cleaned.replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
-  
-  // Clean up extra whitespace
-  cleaned = cleaned.replace(/\n\s*\n\s*\n/g, "\n\n");
-  
-  return cleaned.trim();
+  try {
+    // Parse HTML with jsdom
+    const dom = new JSDOM(html);
+    const document = dom.window.document;
+    
+    // Find all semantic elements (ignoring wrapper divs)
+    const semanticTags = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "table", "ul", "ol", "blockquote", "pre"];
+    const semanticElements: string[] = [];
+    
+    // Extract all semantic elements from the document
+    semanticTags.forEach((tag) => {
+      const elements = document.querySelectorAll(tag);
+      elements.forEach((el) => {
+        // Remove inline styles and classes
+        el.removeAttribute("style");
+        el.removeAttribute("class");
+        // Remove data attributes
+        Array.from(el.attributes).forEach((attr) => {
+          if (attr.name.startsWith("data-")) {
+            el.removeAttribute(attr.name);
+          }
+        });
+        semanticElements.push(el.outerHTML);
+      });
+    });
+    
+    // If we found semantic content, return it joined
+    if (semanticElements.length > 0) {
+      return semanticElements.join("\n");
+    }
+    
+    // Fallback to body content if available
+    const body = document.body;
+    if (body) {
+      return body.innerHTML;
+    }
+    
+    return html;
+  } catch (error) {
+    console.error("Error parsing HTML with jsdom:", error);
+    // Fallback to simple regex cleaning
+    let cleaned = html;
+    cleaned = cleaned.replace(/<div[^>]*>/gi, "");
+    cleaned = cleaned.replace(/<\/div>/gi, "");
+    cleaned = cleaned.replace(/\s+style="[^"]*"/gi, "");
+    cleaned = cleaned.replace(/\s+class="[^"]*"/gi, "");
+    return cleaned.trim();
+  }
 }
 
 /**
