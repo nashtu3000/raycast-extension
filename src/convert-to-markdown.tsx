@@ -575,23 +575,41 @@ export default async function Command() {
     else if (clipboardContent.text) {
       try {
         const { execSync } = require("child_process");
-        const htmlBuffer = execSync("osascript -e 'the clipboard as «class HTML»'", {
+        const result = execSync("osascript -e 'the clipboard as «class HTML»'", {
           encoding: "buffer",
-          timeout: 1000,
+          timeout: 5000,
+          maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large HTML
         });
         
-        // Convert hex output to HTML string
-        const htmlHex = htmlBuffer.toString().replace(/«data HTML|»/g, "").trim();
+        // The result is hex-encoded HTML data prefixed with «data HTML
+        const htmlHex = result.toString().replace(/«data HTML|»/g, "").trim();
+        
         if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
           // Convert hex to string
           const htmlFromClipboard = Buffer.from(htmlHex, "hex").toString("utf-8");
           if (htmlFromClipboard && htmlFromClipboard.includes("<")) {
             htmlContent = htmlFromClipboard;
-            console.log("Retrieved HTML from macOS clipboard directly");
+            console.log(`Retrieved HTML from macOS clipboard directly (${htmlFromClipboard.length} bytes)`);
           }
         }
-      } catch (error) {
-        console.log("Could not retrieve HTML from macOS clipboard:", error);
+      } catch (error: any) {
+        // Even if there's an ENOBUFS error, the stdout might have the data
+        if (error.stdout) {
+          try {
+            const htmlHex = error.stdout.toString().replace(/«data HTML|»/g, "").trim();
+            if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
+              const htmlFromClipboard = Buffer.from(htmlHex, "hex").toString("utf-8");
+              if (htmlFromClipboard && htmlFromClipboard.includes("<")) {
+                htmlContent = htmlFromClipboard;
+                console.log(`Retrieved HTML from error.stdout (${htmlFromClipboard.length} bytes)`);
+              }
+            }
+          } catch (parseError) {
+            console.log("Could not parse HTML from error.stdout");
+          }
+        } else {
+          console.log("Could not retrieve HTML from macOS clipboard:", error.message);
+        }
       }
     }
     // Spreadsheet/table fallback: check if plain text contains TSV (tab-separated values)
