@@ -40,47 +40,40 @@ function convertFirstRowToHeaders(html: string): string {
 }
 
 /**
- * Extracts semantic content using DOM parsing to handle nested wrappers properly
+ * Extracts semantic content using DOM parsing, preserving document structure
  */
 function cleanHtml(html: string): string {
   try {
-    // Parse HTML with jsdom
+    // Parse HTML with jsdom (minimal config to avoid resource loading errors)
     const dom = new JSDOM(html);
     const document = dom.window.document;
     
-    // Find all semantic elements (ignoring wrapper divs)
-    const semanticTags = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "table", "ul", "ol", "blockquote", "pre"];
-    const semanticElements: string[] = [];
+    // Remove all wrapper divs but keep their content
+    const allDivs = document.querySelectorAll("div");
+    allDivs.forEach((div) => {
+      // Replace the div with its children
+      while (div.firstChild) {
+        div.parentNode?.insertBefore(div.firstChild, div);
+      }
+      div.remove();
+    });
     
-    // Extract all semantic elements from the document
-    semanticTags.forEach((tag) => {
-      const elements = document.querySelectorAll(tag);
-      elements.forEach((el) => {
-        // Remove inline styles and classes
-        el.removeAttribute("style");
-        el.removeAttribute("class");
-        // Remove data attributes
-        Array.from(el.attributes).forEach((attr) => {
-          if (attr.name.startsWith("data-")) {
-            el.removeAttribute(attr.name);
-          }
-        });
-        semanticElements.push(el.outerHTML);
+    // Remove inline styles, classes, and data attributes from all elements
+    const allElements = document.querySelectorAll("*");
+    allElements.forEach((el) => {
+      el.removeAttribute("style");
+      el.removeAttribute("class");
+      // Remove data attributes
+      Array.from(el.attributes).forEach((attr) => {
+        if (attr.name.startsWith("data-")) {
+          el.removeAttribute(attr.name);
+        }
       });
     });
     
-    // If we found semantic content, return it joined
-    if (semanticElements.length > 0) {
-      return semanticElements.join("\n");
-    }
-    
-    // Fallback to body content if available
+    // Get the cleaned HTML from body
     const body = document.body;
-    if (body) {
-      return body.innerHTML;
-    }
-    
-    return html;
+    return body ? body.innerHTML.trim() : html;
   } catch (error) {
     console.error("Error parsing HTML with jsdom:", error);
     // Fallback to simple regex cleaning
@@ -89,6 +82,7 @@ function cleanHtml(html: string): string {
     cleaned = cleaned.replace(/<\/div>/gi, "");
     cleaned = cleaned.replace(/\s+style="[^"]*"/gi, "");
     cleaned = cleaned.replace(/\s+class="[^"]*"/gi, "");
+    cleaned = cleaned.replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
     return cleaned.trim();
   }
 }
