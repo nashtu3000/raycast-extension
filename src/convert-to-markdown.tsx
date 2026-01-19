@@ -431,6 +431,7 @@ function convertMixedTsvToHtml(text: string): string {
   let html = "";
   let inTable = false;
   let tableLines: string[] = [];
+  let tableCount = 0;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -447,9 +448,12 @@ function convertMixedTsvToHtml(text: string): string {
       }
       tableLines.push(line);
       
-      // If next line doesn't have tabs, close the table
-      if (!nextHasTab) {
-        html += convertTableLinesToHtml(tableLines);
+      // If next line doesn't have tabs or it's the last line, close the table
+      if (!nextHasTab || i === lines.length - 1) {
+        const tableHtml = convertTableLinesToHtml(tableLines);
+        html += tableHtml;
+        tableCount++;
+        console.log(`Converted table ${tableCount}: ${tableLines.length} rows`);
         inTable = false;
         tableLines = [];
       }
@@ -466,15 +470,23 @@ function convertMixedTsvToHtml(text: string): string {
         } else if (line.match(/^\d+\.\d+\.\d+\s+/)) {
           // Sub-sub-heading like "1.1.1 Target Population"
           html += `<h3>${escapeHtml(line.trim())}</h3>\n`;
+        } else if (line.match(/^[A-Z][a-z]+.*:$/)) {
+          // Bold-like heading that ends with colon like "Pilot sample:"
+          html += `<p><strong>${escapeHtml(line.trim())}</strong></p>\n`;
+        } else if (line.match(/^(●|•|-|\*)\s+/)) {
+          // Bullet point
+          const content = line.replace(/^(●|•|-|\*)\s+/, "").trim();
+          html += `<ul><li>${escapeHtml(content)}</li></ul>\n`;
         } else {
           html += `<p>${escapeHtml(line.trim())}</p>\n`;
         }
       } else {
-        html += `<p>&nbsp;</p>\n`;
+        html += "\n";
       }
     }
   }
   
+  console.log(`Total tables converted from plain text: ${tableCount}`);
   return html;
 }
 
