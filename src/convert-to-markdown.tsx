@@ -563,12 +563,36 @@ export default async function Command() {
     // Check if HTML content is available as rich format
     if (clipboardContent.html) {
       htmlContent = clipboardContent.html;
-      console.log("Using HTML from rich format");
+      console.log("Using HTML from Raycast API");
     }
-    // Smart fallback: check if plain text contains HTML tags
+    // Smart fallback: check if plain text contains HTML tags (like when pasting into terminal)
     else if (clipboardContent.text && looksLikeHtml(clipboardContent.text)) {
       htmlContent = clipboardContent.text;
       console.log("Detected HTML in plain text");
+    }
+    // macOS fallback: Try to get HTML directly from system clipboard
+    // Raycast API sometimes doesn't detect HTML from Google Docs
+    else if (clipboardContent.text) {
+      try {
+        const { execSync } = require("child_process");
+        const htmlBuffer = execSync("osascript -e 'the clipboard as «class HTML»'", {
+          encoding: "buffer",
+          timeout: 1000,
+        });
+        
+        // Convert hex output to HTML string
+        const htmlHex = htmlBuffer.toString().replace(/«data HTML|»/g, "").trim();
+        if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
+          // Convert hex to string
+          const htmlFromClipboard = Buffer.from(htmlHex, "hex").toString("utf-8");
+          if (htmlFromClipboard && htmlFromClipboard.includes("<")) {
+            htmlContent = htmlFromClipboard;
+            console.log("Retrieved HTML from macOS clipboard directly");
+          }
+        }
+      } catch (error) {
+        console.log("Could not retrieve HTML from macOS clipboard:", error);
+      }
     }
     // Spreadsheet/table fallback: check if plain text contains TSV (tab-separated values)
     else if (clipboardContent.text && isTsvContent(clipboardContent.text)) {
