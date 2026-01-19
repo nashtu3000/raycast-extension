@@ -284,6 +284,12 @@ function convertFirstRowToHeaders(html: string): string {
  */
 function cleanHtml(html: string): string {
   try {
+    const htmlSize = html.length;
+    console.log(`Processing HTML: ${(htmlSize / 1024).toFixed(1)} KB`);
+    
+    // For very large HTML (>500KB), use lightweight processing to avoid OOM
+    const isLargeDocument = htmlSize > 500 * 1024;
+    
     // Load HTML with Cheerio once (jQuery-like API for Node.js)
     const $ = cheerio.load(html, {
       xml: false,
@@ -299,7 +305,12 @@ function cleanHtml(html: string): string {
     unwrapLayoutTables($);
     
     // STEP 2: Convert remaining data tables to Markdown
-    convertDataTablesToMarkdown($);
+    // Skip expensive cheerio-tableparser for large docs (let Turndown handle it)
+    if (!isLargeDocument) {
+      convertDataTablesToMarkdown($);
+    } else {
+      console.log("Large document - skipping tableparser, letting Turndown handle tables");
+    }
     
     // STEP 3: Remove all wrapper divs - unwrap their content but keep the children
     $("div").each((i, elem) => {
