@@ -37,13 +37,17 @@ function convertFirstRowToHeaders(html: string): string {
 }
 
 /**
- * Removes wrapper divs and inline styles while preserving semantic content
+ * Extracts actual semantic content from deeply nested wrapper divs
  */
 function cleanHtml(html: string): string {
-  let cleaned = html;
+  // Find the actual content by looking for semantic tags
+  // Skip all wrapper divs and extract h1-h6, p, table, ul, ol elements
+  const contentPattern = /((?:<(?:h[1-6]|p|table|ul|ol|blockquote|pre)[\s\S]*?<\/(?:h[1-6]|p|table|ul|ol|blockquote|pre)>[\s\S]*?)+)/i;
+  const match = html.match(contentPattern);
   
-  // Remove ALL div tags (both opening and closing) since they're just wrappers
-  // Divs don't have semantic meaning, they're just containers
+  let cleaned = match ? match[1] : html;
+  
+  // If we still have wrapper divs, just remove them all
   cleaned = cleaned.replace(/<div[^>]*>/gi, "");
   cleaned = cleaned.replace(/<\/div>/gi, "");
   
