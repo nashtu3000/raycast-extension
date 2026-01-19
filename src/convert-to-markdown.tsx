@@ -1,6 +1,7 @@
 import { Clipboard, showHUD, showToast, Toast } from "@raycast/api";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
+import * as cheerio from "cheerio";
 
 /**
  * Detects if HTML looks like it's from a spreadsheet (Google Sheets, Excel, etc.)
@@ -37,36 +38,55 @@ function convertFirstRowToHeaders(html: string): string {
 }
 
 /**
- * Cleans HTML by removing wrapper divs, inline styles, and non-semantic attributes
- * Uses regex for simplicity and reliability
+ * Cleans HTML using Cheerio for proper DOM manipulation
+ * Removes wrapper divs, inline styles, and non-semantic attributes
  */
 function cleanHtml(html: string): string {
-  let cleaned = html;
-  
-  // Remove all div tags (both opening and closing)
-  // Divs are just containers with no semantic meaning
-  cleaned = cleaned.replace(/<div[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<\/div>/gi, "\n");
-  
-  // Remove inline style attributes
-  cleaned = cleaned.replace(/\s+style="[^"]*"/gi, "");
-  cleaned = cleaned.replace(/\s+style='[^']*'/gi, "");
-  
-  // Remove class attributes
-  cleaned = cleaned.replace(/\s+class="[^"]*"/gi, "");
-  cleaned = cleaned.replace(/\s+class='[^']*'/gi, "");
-  
-  // Remove data attributes
-  cleaned = cleaned.replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
-  
-  // Remove id attributes (except on links for anchor references)
-  cleaned = cleaned.replace(/\s+id="[^"]*"(?![^<]*<\/a>)/gi, "");
-  
-  // Clean up excessive whitespace and newlines
-  cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, "\n\n");
-  cleaned = cleaned.trim();
-  
-  return cleaned;
+  try {
+    // Load HTML with Cheerio (jQuery-like API for Node.js)
+    const $ = cheerio.load(html, {
+      xmlMode: false,
+      decodeEntities: true,
+    });
+    
+    // Remove all wrapper divs - unwrap their content but keep the children
+    $("div").each((i, elem) => {
+      $(elem).replaceWith($(elem).html() || "");
+    });
+    
+    // Remove inline styles from all elements
+    $("*").removeAttr("style");
+    
+    // Remove class attributes
+    $("*").removeAttr("class");
+    
+    // Remove data-* attributes
+    $("*").each((i, elem) => {
+      const attribs = $(elem).attr();
+      if (attribs) {
+        Object.keys(attribs).forEach((attr) => {
+          if (attr.startsWith("data-")) {
+            $(elem).removeAttr(attr);
+          }
+        });
+      }
+    });
+    
+    // Remove id attributes (except from links for anchors)
+    $("*:not(a)").removeAttr("id");
+    
+    // Get the cleaned HTML
+    return $.html().trim();
+  } catch (error) {
+    console.error("Error cleaning HTML with Cheerio:", error);
+    // Fallback to basic regex cleaning
+    return html
+      .replace(/<div[^>]*>/gi, "")
+      .replace(/<\/div>/gi, "")
+      .replace(/\s+style="[^"]*"/gi, "")
+      .replace(/\s+class="[^"]*"/gi, "")
+      .trim();
+  }
 }
 
 /**
