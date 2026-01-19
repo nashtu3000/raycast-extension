@@ -200,15 +200,15 @@ export default async function Command() {
       processedHtml = convertFirstRowToHeaders(htmlContent);
     }
 
-    // Only do minimal cleaning - just remove inline styles
-    const cleanedHtml = processedHtml
-      .replace(/\s+style="[^"]*"/gi, "")
-      .replace(/\s+style='[^']*'/gi, "")
-      .replace(/\s+class="[^"]*"/gi, "")
-      .replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
+    // Clean the HTML
+    const cleanedHtml = cleanHtml(processedHtml);
+    
+    console.log("Cleaned HTML preview:", cleanedHtml.substring(0, 500));
 
     // Convert to Markdown - Turndown handles messy HTML well
     const markdown = convertToMarkdown(cleanedHtml);
+    
+    console.log("Markdown preview:", markdown.substring(0, 500));
 
     // Copy Markdown back to clipboard
     await Clipboard.copy(markdown);
