@@ -1,9 +1,6 @@
-import { Clipboard, showHUD, showToast, Toast, environment } from "@raycast/api";
+import { Clipboard, showHUD, showToast, Toast } from "@raycast/api";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
-import { writeFileSync } from "fs";
-import { join } from "path";
-import { JSDOM } from "jsdom";
 
 /**
  * Detects if HTML looks like it's from a spreadsheet (Google Sheets, Excel, etc.)
@@ -40,58 +37,36 @@ function convertFirstRowToHeaders(html: string): string {
 }
 
 /**
- * Extracts semantic content using DOM parsing, preserving document structure
+ * Cleans HTML by removing wrapper divs, inline styles, and non-semantic attributes
+ * Uses regex for simplicity and reliability
  */
 function cleanHtml(html: string): string {
-  try {
-    // Parse HTML with jsdom - completely disable all resource loading
-    const dom = new JSDOM(html, {
-      url: "http://localhost",
-      contentType: "text/html",
-      includeNodeLocations: false,
-      storageQuota: 0,
-      pretendToBeVisual: false,
-      resources: undefined,
-    });
-    const document = dom.window.document;
-    
-    // Remove all wrapper divs but keep their content
-    const allDivs = document.querySelectorAll("div");
-    allDivs.forEach((div) => {
-      // Replace the div with its children
-      while (div.firstChild) {
-        div.parentNode?.insertBefore(div.firstChild, div);
-      }
-      div.remove();
-    });
-    
-    // Remove inline styles, classes, and data attributes from all elements
-    const allElements = document.querySelectorAll("*");
-    allElements.forEach((el) => {
-      el.removeAttribute("style");
-      el.removeAttribute("class");
-      // Remove data attributes
-      Array.from(el.attributes).forEach((attr) => {
-        if (attr.name.startsWith("data-")) {
-          el.removeAttribute(attr.name);
-        }
-      });
-    });
-    
-    // Get the cleaned HTML from body
-    const body = document.body;
-    return body ? body.innerHTML.trim() : html;
-  } catch (error) {
-    console.error("Error parsing HTML with jsdom:", error);
-    // Fallback to simple regex cleaning
-    let cleaned = html;
-    cleaned = cleaned.replace(/<div[^>]*>/gi, "");
-    cleaned = cleaned.replace(/<\/div>/gi, "");
-    cleaned = cleaned.replace(/\s+style="[^"]*"/gi, "");
-    cleaned = cleaned.replace(/\s+class="[^"]*"/gi, "");
-    cleaned = cleaned.replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
-    return cleaned.trim();
-  }
+  let cleaned = html;
+  
+  // Remove all div tags (both opening and closing)
+  // Divs are just containers with no semantic meaning
+  cleaned = cleaned.replace(/<div[^>]*>/gi, "");
+  cleaned = cleaned.replace(/<\/div>/gi, "\n");
+  
+  // Remove inline style attributes
+  cleaned = cleaned.replace(/\s+style="[^"]*"/gi, "");
+  cleaned = cleaned.replace(/\s+style='[^']*'/gi, "");
+  
+  // Remove class attributes
+  cleaned = cleaned.replace(/\s+class="[^"]*"/gi, "");
+  cleaned = cleaned.replace(/\s+class='[^']*'/gi, "");
+  
+  // Remove data attributes
+  cleaned = cleaned.replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
+  
+  // Remove id attributes (except on links for anchor references)
+  cleaned = cleaned.replace(/\s+id="[^"]*"(?![^<]*<\/a>)/gi, "");
+  
+  // Clean up excessive whitespace and newlines
+  cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, "\n\n");
+  cleaned = cleaned.trim();
+  
+  return cleaned;
 }
 
 /**
@@ -233,15 +208,6 @@ export default async function Command() {
 
     // Clean the HTML
     const cleanedHtml = cleanHtml(processedHtml);
-    
-    // DEBUG: Save cleaned HTML to temp file for inspection
-    try {
-      const debugPath = join(environment.supportPath, "debug-cleaned.html");
-      writeFileSync(debugPath, cleanedHtml, "utf-8");
-      console.log("Saved cleaned HTML to:", debugPath);
-    } catch (e) {
-      console.log("Could not save debug file:", e);
-    }
     
     console.log("Cleaned HTML preview:", cleanedHtml.substring(0, 500));
 
