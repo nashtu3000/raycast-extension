@@ -6,7 +6,7 @@ import * as cheerioTableparser from "cheerio-tableparser";
 
 /**
  * Detects if a table is a layout table (used for positioning) vs a data table
- * Layout tables typically have single columns or contain block elements
+ * Layout tables typically have single columns or contain complex nested structures
  */
 function isLayoutTable($: cheerio.CheerioAPI, table: any): boolean {
   const $table = $(table);
@@ -14,14 +14,41 @@ function isLayoutTable($: cheerio.CheerioAPI, table: any): boolean {
   
   if (rows.length === 0) return false;
   
-  // Single column tables are layout tables
+  // Single column tables are almost always layout tables
   const firstRowCells = rows.first().find("td, th").length;
   if (firstRowCells === 1) return true;
   
-  // Tables containing block elements (h1-h6, p, ul, ol) are layout tables
-  // Data tables typically only contain inline content and other tables
-  const hasBlockElements = $table.find("h1, h2, h3, h4, h5, h6, p, ul, ol").length > 0;
-  if (hasBlockElements) return true;
+  // Check for complex nested structures that indicate a layout table
+  // Layout tables typically contain headings (h1-h6) or lists (ul, ol) directly
+  const hasHeadings = $table.find("h1, h2, h3, h4, h5, h6").length > 0;
+  const hasLists = $table.find("ul, ol").length > 0;
+  
+  // If table has headings or lists, it's likely a layout table
+  if (hasHeadings || hasLists) return true;
+  
+  // Check if table has very few rows compared to columns (wide but short = likely data table)
+  const avgCellsPerRow = $table.find("td, th").length / rows.length;
+  if (avgCellsPerRow >= 3 && rows.length >= 2) {
+    // This looks like a data table (multiple columns, multiple rows)
+    return false;
+  }
+  
+  // Check if cells contain only simple content (even if wrapped in <p> tags)
+  // Data table cells typically have short, simple content
+  let hasComplexContent = false;
+  $table.find("td, th").each((_, cell) => {
+    const $cell = $(cell);
+    // Check if cell contains nested tables or multiple block elements
+    const nestedTables = $cell.find("table").length;
+    const blockElements = $cell.find("p, div").length;
+    
+    if (nestedTables > 0 || blockElements > 2) {
+      hasComplexContent = true;
+      return false; // break the each loop
+    }
+  });
+  
+  if (hasComplexContent) return true;
   
   return false;
 }
