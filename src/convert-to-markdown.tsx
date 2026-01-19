@@ -65,21 +65,22 @@ function unwrapLayoutTables($: cheerio.CheerioAPI): void {
     if (isLayoutTable($, table)) {
       const $table = $(table);
       
-      // Extract all content from table cells while preserving HTML structure
-      // Use Cheerio to properly handle DOM nodes, not string manipulation
-      const $replacement = $("<div></div>");
-      
-      $table.find("td, th").each((_, cell) => {
-        // Append each cell's children (not the cell itself) to the replacement div
-        $(cell).contents().each((_, node) => {
-          $replacement.append($(node).clone());
-        });
-        // Add a line break between cells for spacing
-        $replacement.append("\n");
+      // Simply unwrap: remove the table element but keep all its descendants
+      // Use Cheerio's native unwrap functionality on table structure elements
+      $table.find("tbody, thead, tfoot").each((_, elem) => {
+        $(elem).replaceWith($(elem).children());
       });
       
-      // Replace the table with the extracted content
-      $table.replaceWith($replacement.html() || "");
+      $table.find("tr").each((_, elem) => {
+        $(elem).replaceWith($(elem).children());
+      });
+      
+      $table.find("td, th").each((_, elem) => {
+        $(elem).replaceWith($(elem).children());
+      });
+      
+      // Finally, unwrap the table itself
+      $table.replaceWith($table.children());
     }
   });
 }
