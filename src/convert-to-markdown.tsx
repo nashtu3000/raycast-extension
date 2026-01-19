@@ -2,6 +2,131 @@ import { Clipboard, showHUD, showToast, Toast } from "@raycast/api";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 import * as cheerio from "cheerio";
+import * as cheerioTableparser from "cheerio-tableparser";
+
+/**
+ * Detects if a table is a layout table (used for positioning) vs a data table
+ * Layout tables typically have single columns or contain block elements
+ */
+function isLayoutTable($: cheerio.CheerioAPI, table: any): boolean {
+  const $table = $(table);
+  const rows = $table.find("tr");
+  
+  if (rows.length === 0) return false;
+  
+  // Single column tables are layout tables
+  const firstRowCells = rows.first().find("td, th").length;
+  if (firstRowCells === 1) return true;
+  
+  // Tables containing block elements (h1-h6, p, ul, ol) are layout tables
+  // Data tables typically only contain inline content and other tables
+  const hasBlockElements = $table.find("h1, h2, h3, h4, h5, h6, p, ul, ol").length > 0;
+  if (hasBlockElements) return true;
+  
+  return false;
+}
+
+/**
+ * Unwraps layout tables by extracting their content
+ * This prevents Google Docs layout tables from being converted to Markdown tables
+ */
+function unwrapLayoutTables($: cheerio.CheerioAPI): void {
+  // Process tables from innermost to outermost (to handle nested tables)
+  const tables = $("table").toArray().reverse();
+  
+  tables.forEach((table) => {
+    if (isLayoutTable($, table)) {
+      const $table = $(table);
+      // Extract all cell contents and join with newlines
+      const contents = $table
+        .find("td, th")
+        .map((_, cell) => $(cell).html())
+        .get()
+        .join("\n");
+      $table.replaceWith(contents);
+    }
+  });
+}
+
+/**
+ * Transposes a table from column-major to row-major format
+ */
+function transposeTable(data: string[][]): string[][] {
+  if (data.length === 0) return [];
+  const rows: string[][] = [];
+  const numRows = data[0].length;
+  const numCols = data.length;
+  
+  for (let r = 0; r < numRows; r++) {
+    const row: string[] = [];
+    for (let c = 0; c < numCols; c++) {
+      row.push(data[c][r] || "");
+    }
+    rows.push(row);
+  }
+  
+  return rows;
+}
+
+/**
+ * Escapes pipe characters in table cells to prevent breaking Markdown tables
+ */
+function escapePipes(text: string): string {
+  return text.replace(/\|/g, "\\|");
+}
+
+/**
+ * Renders a 2D array as a Markdown table
+ */
+function renderMarkdownTable(rows: string[][]): string {
+  if (rows.length === 0) return "";
+  
+  const escapedRows = rows.map((row) => 
+    row.map((cell) => escapePipes(cell.trim()))
+  );
+  
+  const header = escapedRows[0];
+  const divider = header.map(() => "---");
+  const body = escapedRows.slice(1);
+  
+  const lines = [
+    `| ${header.join(" | ")} |`,
+    `| ${divider.join(" | ")} |`,
+    ...body.map((r) => `| ${r.join(" | ")} |`),
+  ];
+  
+  return lines.join("\n");
+}
+
+/**
+ * Converts data tables to Markdown using cheerio-tableparser
+ * Replaces tables with pre-rendered Markdown to prevent Turndown from processing them
+ */
+function convertDataTablesToMarkdown($: cheerio.CheerioAPI): void {
+  // Initialize cheerio-tableparser
+  cheerioTableparser.default($);
+  
+  $("table").each((i, table) => {
+    const $table = $(table);
+    
+    try {
+      // Parse table using cheerio-tableparser
+      const data = ($table as any).parsetable(true, true, true);
+      
+      // Transpose from column-major to row-major
+      const rows = transposeTable(data);
+      
+      // Render as Markdown table
+      const mdTable = renderMarkdownTable(rows);
+      
+      // Replace with a special marker that Turndown won't process
+      $table.replaceWith(`<pre data-md-table="true">${mdTable}</pre>`);
+    } catch (error) {
+      console.error("Error parsing table:", error);
+      // Leave table as-is if parsing fails
+    }
+  });
+}
 
 /**
  * Detects if HTML looks like it's from a spreadsheet (Google Sheets, Excel, etc.)
@@ -39,40 +164,51 @@ function convertFirstRowToHeaders(html: string): string {
 
 /**
  * Cleans HTML using Cheerio for proper DOM manipulation
+ * Detects and unwraps layout tables, converts data tables to Markdown
  * Removes wrapper divs, inline styles, and non-semantic attributes
  */
 function cleanHtml(html: string): string {
   try {
     // Load HTML with Cheerio (jQuery-like API for Node.js)
     const $ = cheerio.load(html, {
-      xmlMode: false,
-      decodeEntities: true,
+      xml: false,
     });
     
-    // Remove all wrapper divs - unwrap their content but keep the children
+    // STEP 1: Unwrap layout tables (Google Docs wraps everything in tables)
+    unwrapLayoutTables($);
+    
+    // STEP 2: Convert remaining data tables to Markdown
+    convertDataTablesToMarkdown($);
+    
+    // STEP 3: Remove all wrapper divs - unwrap their content but keep the children
     $("div").each((i, elem) => {
       $(elem).replaceWith($(elem).html() || "");
     });
     
-    // Remove inline styles from all elements
+    // STEP 4: Remove inline styles from all elements
     $("*").removeAttr("style");
     
-    // Remove class attributes
-    $("*").removeAttr("class");
+    // STEP 5: Remove class attributes (except our markdown table marker)
+    $("*").each((i, elem) => {
+      const $elem = $(elem);
+      if (!$elem.attr("data-md-table")) {
+        $elem.removeAttr("class");
+      }
+    });
     
-    // Remove data-* attributes
+    // STEP 6: Remove data-* attributes (except our markdown table marker)
     $("*").each((i, elem) => {
       const attribs = $(elem).attr();
       if (attribs) {
         Object.keys(attribs).forEach((attr) => {
-          if (attr.startsWith("data-")) {
+          if (attr.startsWith("data-") && attr !== "data-md-table") {
             $(elem).removeAttr(attr);
           }
         });
       }
     });
     
-    // Remove id attributes (except from links for anchors)
+    // STEP 7: Remove id attributes (except from links for anchors)
     $("*:not(a)").removeAttr("id");
     
     // Get the cleaned HTML
@@ -105,7 +241,21 @@ function convertToMarkdown(html: string): string {
   // Add GitHub Flavored Markdown support (tables, strikethrough, task lists)
   turndownService.use(gfm);
 
-  // Custom rules for better conversion
+  // Custom rule: Preserve pre-converted Markdown tables
+  turndownService.addRule("mdTablePlaceholder", {
+    filter: (node: any) => {
+      return (
+        node.nodeName === "PRE" &&
+        node.getAttribute("data-md-table") === "true"
+      );
+    },
+    replacement: (content: string) => {
+      // Return the Markdown table as-is, with proper spacing
+      return "\n\n" + content + "\n\n";
+    },
+  });
+
+  // Custom rule: Preserve line breaks
   turndownService.addRule("preserveLineBreaks", {
     filter: ["br"],
     replacement: () => "  \n",

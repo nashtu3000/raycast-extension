@@ -1,0 +1,57 @@
+> ray develop
+
+info  - entry points ["src/convert-to-markdown.tsx"]
+info  - compiled entry points
+info  - generated extension's TypeScript definitions
+ready  - built extension successfully
+22:04:29 Clipboard content available: {
+  hasHtml: false,
+  hasText: true,
+  hasFile: false,
+  textLength: 2573,
+  htmlLength: undefined
+}
+22:04:29 Detected TSV content from spreadsheet
+22:04:29 Detected spreadsheet content, converting first row to headers
+22:04:29 Cleaned HTML preview: <html><head></head><body><table>
+<thead>
+<tr>
+<th>ppendix 4 - Combined Dataset &amp; Weighting Specifications</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fieldwork &amp; Sampling Approach</td>
+</tr>
+<tr>
+<td></td>
+</tr>
+<tr>
+<td>Sample</td>
+<td>Start date</td>
+<td>End date</td>
+</tr>
+<tr>
+<td>Combined (Adults + Adolescents)</td>
+<td>2025-11-21</td>
+<td>2025-12-16</td>
+</tr>
+<tr>
+<td>Combined Dataset Weighting Variables</td>
+</tr>
+<tr>
+<td>The unified dataset (N=2,500) contains two distinct weighting va
+22:04:29 Markdown preview: | ppendix 4 - Combined Dataset & Weighting Specif
+22:04:29 Markdown preview: | ppendix 4 - Combined Dataset & Weighting Specifications |
+| --- |
+| Fieldwork & Sampling Approach |
+|  |
+| Sample | Start date | End date |
+| Combined (Adults + Adolescents) | 2025-11-21 | 2025-12-16 |
+| Combined Dataset Weighting Variables |
+| The unified dataset (N=2,500) contains two distinct weighting variables to
+| The unified dataset (N=2,500) contains two distinct weighting variables to allow for different types of analysis. The weighting scheme used Sex\*Resid
+| The unified dataset (N=2,500) contains two distinct weighting variables to allow for different types of analysis. The weighting scheme used Sex\*Residence (Female/Male + Urban/Rural), Age groups (15-19, 20-24, 25-34, 35-44, 45
+| The unified dataset (N=2,500) contains two distinct weighting variables to allow for different types of analysis. The weighting scheme used Sex\*Residence (Female/Male + Urban/Rural), Age groups (15-19, 20-24, 25-34, 35-44, 45-54, 55-64, 65+), and Educa
+cd "/Users/alex/Library/Mobile Documents/com~apple~CloudDocs/Sites/raycast-extensions" && npm install cheerio-tableparser
+
