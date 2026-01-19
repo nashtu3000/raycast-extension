@@ -37,31 +37,43 @@ function convertFirstRowToHeaders(html: string): string {
 }
 
 /**
- * Cleans HTML content by removing inline styles and problematic attributes
- * while preserving the document structure. Uses regex for minimal impact.
+ * Cleans HTML content by removing inline styles and non-semantic wrapper elements
+ * while preserving the actual document structure.
  */
 function cleanHtml(html: string): string {
   let cleaned = html;
   
-  // Remove inline style attributes
+  // Remove all inline style attributes
   cleaned = cleaned.replace(/\s+style="[^"]*"/gi, "");
   cleaned = cleaned.replace(/\s+style='[^']*'/gi, "");
   
-  // Remove class attributes (optional, keeps structure clean)
+  // Remove class attributes
   cleaned = cleaned.replace(/\s+class="[^"]*"/gi, "");
   cleaned = cleaned.replace(/\s+class='[^']*'/gi, "");
   
-  // Remove data attributes that aren't needed
+  // Remove data attributes
   cleaned = cleaned.replace(/\s+data-[a-z-]+="[^"]*"/gi, "");
   
-  // Remove wrapper divs that don't add semantic meaning
-  cleaned = cleaned.replace(/<div[^>]*id="container"[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<div[^>]*id="preview"[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<div[^>]*id="preview-wrapper"[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<div[^>]*id="output"[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<\/div>/gi, "");
+  // Remove common wrapper/preview divs (but keep semantic divs)
+  cleaned = cleaned.replace(/<div[^>]*?\s+id=["'](container|preview|preview-wrapper|output)["'][^>]*?>/gi, "");
   
-  return cleaned;
+  // Remove empty divs but be careful not to remove too much
+  // Only remove divs that are purely wrapper/structural
+  const lines = cleaned.split("\n");
+  const filteredLines = lines.filter((line) => {
+    const trimmed = line.trim();
+    // Remove closing div tags that were wrapping content
+    if (trimmed === "</div>") {
+      return false;
+    }
+    // Remove empty opening div tags
+    if (trimmed.match(/^<div[^>]*>\s*$/)) {
+      return false;
+    }
+    return true;
+  });
+  
+  return filteredLines.join("\n");
 }
 
 /**
