@@ -22,6 +22,12 @@
       "title": "Convert to Plain Markdown",
       "description": "Convert rich text/HTML to Markdown, removing all images and media",
       "mode": "no-view"
+    },
+    {
+      "name": "convert-markdown-to-richtext",
+      "title": "Convert Markdown to Rich Text",
+      "description": "Convert Markdown from clipboard to rich text for pasting into Docs, emails, and more",
+      "mode": "no-view"
     }
   ],
   "dependencies": {
@@ -29,11 +35,13 @@
     "@raycast/utils": "^1.17.0",
     "cheerio": "^1.1.2",
     "cheerio-tableparser": "^1.0.1",
+    "marked": "^17.0.1",
     "turndown": "^7.2.0",
     "turndown-plugin-gfm": "^1.0.2"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^1.0.11",
+    "@types/marked": "^5.0.2",
     "@types/node": "^20.8.10",
     "@types/react": "^18.3.3",
     "eslint": "^8.57.0",
