@@ -275,13 +275,17 @@ export default async function PlainMarkdownCommand() {
         const outputPath = path.join(tempDir, "raycast-clipboard-output-plain.txt");
         
         const psScript = `
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Windows.Forms
-$clip = [System.Windows.Forms.Clipboard]
-if ($clip::ContainsText([System.Windows.Forms.TextDataFormat]::Html)) {
-    $html = $clip::GetText([System.Windows.Forms.TextDataFormat]::Html)
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText("${outputPath.replace(/\\/g, "\\\\")}", $html, $utf8NoBom)
+$dataObj = [System.Windows.Forms.Clipboard]::GetDataObject()
+if ($dataObj -and $dataObj.GetDataPresent("HTML Format")) {
+    $stream = $dataObj.GetData("HTML Format")
+    if ($stream -is [System.IO.MemoryStream]) {
+        $bytes = $stream.ToArray()
+        [System.IO.File]::WriteAllBytes("${outputPath.replace(/\\/g, "\\\\")}", $bytes)
+    } elseif ($stream -is [string]) {
+        $utf8 = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText("${outputPath.replace(/\\/g, "\\\\")}", $stream, $utf8)
+    }
 }
 `;
         try {
