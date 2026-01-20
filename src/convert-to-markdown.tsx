@@ -812,13 +812,13 @@ if ($data -and $data.GetDataPresent('HTML Format')) {
               const fragmentMatch = result.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
               if (fragmentMatch) {
                 htmlContent = fragmentMatch[1];
-                console.log(`Retrieved HTML fragment from Windows clipboard (${htmlContent.length} bytes)`);
+                console.log(`Retrieved HTML fragment from Windows clipboard (${fragmentMatch[1].length} bytes)`);
               } else if (result.includes("<")) {
                 // Last resort: use anything that looks like HTML
                 const anyHtml = result.substring(result.indexOf("<"));
                 if (anyHtml.length > 10) {
                   htmlContent = anyHtml;
-                  console.log(`Retrieved partial HTML from Windows clipboard (${htmlContent.length} bytes)`);
+                  console.log(`Retrieved partial HTML from Windows clipboard (${anyHtml.length} bytes)`);
                 }
               }
             }
