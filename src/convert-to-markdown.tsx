@@ -817,8 +817,9 @@ if ($clip::ContainsText([System.Windows.Forms.TextDataFormat]::Html)) {
                   // Use everything after the header
                   const htmlStart = result.indexOf("<");
                   if (htmlStart >= 0) {
-                    htmlContent = result.substring(htmlStart);
-                    console.log(`Retrieved raw HTML from Windows clipboard (${htmlContent.length} bytes)`);
+                    const extracted = result.substring(htmlStart);
+                    htmlContent = extracted;
+                    console.log(`Retrieved raw HTML from Windows clipboard (${extracted.length} bytes)`);
                   }
                 }
               }
