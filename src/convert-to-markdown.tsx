@@ -327,9 +327,25 @@ function cleanHtmlLightweight(html: string): string {
   // Step 1: Remove colgroup
   cleaned = cleaned.replace(/<colgroup[^>]*>.*?<\/colgroup>/gis, "");
   
-  // Step 2: Remove ALL attributes from ALL opening tags (very aggressive)
-  // Matches any tag with any attributes and removes the attributes
+  // Step 2: Preserve href attributes on <a> tags by using placeholder markers
+  const linkPlaceholders: { marker: string; href: string }[] = [];
+  let linkCounter = 0;
+  
+  // Replace <a href="..."> with a unique marker that won't be touched by attribute removal
+  cleaned = cleaned.replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi, (match, href) => {
+    const marker = `___LINK_${linkCounter}___`;
+    linkPlaceholders.push({ marker, href });
+    linkCounter++;
+    return `<a>${marker}`;
+  });
+  
+  // Now remove ALL other attributes (won't touch our ___LINK_X___ markers)
   cleaned = cleaned.replace(/<(\w+)(\s+[^>]+)>/g, "<$1>");
+  
+  // Restore links with href attributes after the marker
+  linkPlaceholders.forEach(({ marker, href }) => {
+    cleaned = cleaned.replace(`<a>${marker}`, `<a href="${href}">`);
+  });
   
   // Step 3: Remove wrapper tags but preserve block structure for Turndown
   // KEEP <p> and <br> tags OUTSIDE tables - Turndown needs them for proper spacing
