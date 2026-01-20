@@ -3,11 +3,50 @@ import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 
 /**
+ * Handles colspan and rowspan by duplicating cell content across columns
+ * Must be called BEFORE removing attributes
+ */
+function expandColspanRowspan(html: string): string {
+  // Process each table cell with colspan
+  let expanded = html;
+  
+  // Match td/th tags with colspan attribute
+  expanded = expanded.replace(/<(td|th)([^>]*colspan=["'](\d+)["'][^>]*)>(.*?)<\/\1>/gis, 
+    (match, tagName, attrs, colspan, content) => {
+      const count = parseInt(colspan);
+      
+      // If the cell content looks like a section header (has strong/b tags and is long)
+      // OR if colspan is the entire table width (4+ columns), just use it once
+      // This prevents "Non-Response Bias Analysis" from being duplicated 4 times
+      const looksLikeHeader = /<(strong|b|h\d)/.test(content) && content.length > 30;
+      
+      if (looksLikeHeader || count >= 4) {
+        // Don't duplicate section headers - just expand to first column
+        return `<${tagName}>${content}</${tagName}>`;
+      }
+      
+      // For regular cells, duplicate for each column
+      const cells: string[] = [];
+      for (let i = 0; i < count; i++) {
+        cells.push(`<${tagName}>${content}</${tagName}>`);
+      }
+      
+      return cells.join("");
+    }
+  );
+  
+  return expanded;
+}
+
+/**
  * Lightweight HTML cleaning using regex for large documents
  * EXACT SAME as convert-to-markdown.tsx
  */
 function cleanHtmlLightweight(html: string): string {
   let cleaned = html;
+  
+  // Step 0: Expand colspan/rowspan BEFORE removing attributes
+  cleaned = expandColspanRowspan(cleaned);
   
   // Step 1: Remove colgroup
   cleaned = cleaned.replace(/<colgroup[^>]*>.*?<\/colgroup>/gis, "");
@@ -51,6 +90,37 @@ function cleanHtmlLightweight(html: string): string {
   });
   
   return cleaned.trim();
+}
+
+/**
+ * Post-processes Markdown to fix formatting issues
+ */
+function postProcessMarkdown(markdown: string): string {
+  let fixed = markdown;
+  
+  // Fix 1: Remove lines that are ONLY ** (orphaned bold markers)
+  fixed = fixed.replace(/^\*\*\s*$/gm, "");
+  
+  // Fix 2: Remove standalone ** at the very start or very end of document
+  fixed = fixed.replace(/^\*\*\s*\n+/, "");
+  fixed = fixed.replace(/\n+\s*\*\*\s*$/, "");
+  
+  // Fix 3: Un-escape dashes in regular text (not in code blocks)
+  fixed = fixed.replace(/\\-/g, "-");
+  
+  // Fix 4: Remove empty numbered list items (lines with just numbers and whitespace)
+  fixed = fixed.replace(/^\d+\.\s+$/gm, "");
+  
+  // Fix 5: Convert unicode bullets to markdown list items
+  fixed = fixed.replace(/^●\s+(.+)$/gm, "-   $1");
+  
+  // Fix 6: Clean up excessive blank lines (more than 3 consecutive)
+  fixed = fixed.replace(/\n{4,}/g, "\n\n\n");
+  
+  // Fix 7: Remove trailing whitespace on lines
+  fixed = fixed.replace(/[ \t]+$/gm, "");
+  
+  return fixed.trim();
 }
 
 /**
@@ -149,7 +219,11 @@ export default async function PlainMarkdownCommand() {
     const markdown = turndownService.turndown(cleaned);
     console.log(`[Plain Markdown] Generated ${markdown.length} chars, has tables: ${markdown.includes("| --- |")}`);
     
-    const cleanedMarkdown = removeMediaFromMarkdown(markdown);
+    // Post-process to fix formatting issues
+    const processed = postProcessMarkdown(markdown);
+    
+    // Remove media from the processed markdown
+    const cleanedMarkdown = removeMediaFromMarkdown(processed);
     
     await Clipboard.copy(cleanedMarkdown);
     await showHUD("✅ Plain Markdown copied (media removed)!");
