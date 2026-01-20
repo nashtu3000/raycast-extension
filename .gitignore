@@ -3,3 +3,8 @@ dist/
 .DS_Store
 *.log
 .raycast/
+
+# Test files
+input.html
+result.md
+result-*.md
