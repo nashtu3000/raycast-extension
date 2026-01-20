@@ -722,45 +722,86 @@ export default async function Command() {
       htmlContent = clipboardContent.text;
       console.log("Detected HTML in plain text");
     }
-    // macOS fallback: Try to get HTML directly from system clipboard
+    // Platform-specific fallback: Try to get HTML directly from system clipboard
     // Raycast API sometimes doesn't detect HTML from Google Docs
     else if (clipboardContent.text) {
-      try {
-        const { execSync } = require("child_process");
-        const result = execSync("osascript -e 'the clipboard as «class HTML»'", {
-          encoding: "buffer",
-          timeout: 5000,
-          maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large HTML
-        });
-        
-        // The result is hex-encoded HTML data prefixed with «data HTML
-        const htmlHex = result.toString().replace(/«data HTML|»/g, "").trim();
-        
-        if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
-          // Convert hex to string
-          const htmlFromClipboard = Buffer.from(htmlHex, "hex").toString("utf-8");
-          if (htmlFromClipboard && htmlFromClipboard.includes("<")) {
-            htmlContent = htmlFromClipboard;
-            console.log(`Retrieved HTML from macOS clipboard directly (${htmlFromClipboard.length} bytes)`);
+      const { execSync } = require("child_process");
+      const os = require("os");
+      const platform = os.platform();
+      
+      if (platform === "darwin") {
+        // macOS: Use AppleScript
+        try {
+          const result = execSync("osascript -e 'the clipboard as «class HTML»'", {
+            encoding: "buffer",
+            timeout: 5000,
+            maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large HTML
+          });
+          
+          // The result is hex-encoded HTML data prefixed with «data HTML
+          const htmlHex = result.toString().replace(/«data HTML|»/g, "").trim();
+          
+          if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
+            // Convert hex to string
+            const htmlFromClipboard = Buffer.from(htmlHex, "hex").toString("utf-8");
+            if (htmlFromClipboard && htmlFromClipboard.includes("<")) {
+              htmlContent = htmlFromClipboard;
+              console.log(`Retrieved HTML from macOS clipboard directly (${htmlFromClipboard.length} bytes)`);
+            }
+          }
+        } catch (error: any) {
+          // Even if there's an ENOBUFS error, the stdout might have the data
+          if (error.stdout) {
+            try {
+              const htmlHex = error.stdout.toString().replace(/«data HTML|»/g, "").trim();
+              if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
+                const htmlFromClipboard = Buffer.from(htmlHex, "hex").toString("utf-8");
+                if (htmlFromClipboard && htmlFromClipboard.includes("<")) {
+                  htmlContent = htmlFromClipboard;
+                  console.log(`Retrieved HTML from error.stdout (${htmlFromClipboard.length} bytes)`);
+                }
+              }
+            } catch (parseError) {
+              console.log("Could not parse HTML from error.stdout");
+            }
+          } else {
+            console.log("Could not retrieve HTML from macOS clipboard:", error.message);
           }
         }
-      } catch (error: any) {
-        // Even if there's an ENOBUFS error, the stdout might have the data
-        if (error.stdout) {
-          try {
-            const htmlHex = error.stdout.toString().replace(/«data HTML|»/g, "").trim();
-            if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
-              const htmlFromClipboard = Buffer.from(htmlHex, "hex").toString("utf-8");
-              if (htmlFromClipboard && htmlFromClipboard.includes("<")) {
-                htmlContent = htmlFromClipboard;
-                console.log(`Retrieved HTML from error.stdout (${htmlFromClipboard.length} bytes)`);
-              }
+      } else if (platform === "win32") {
+        // Windows: Use PowerShell to get HTML from clipboard
+        try {
+          const psScript = `
+            Add-Type -AssemblyName System.Windows.Forms
+            $data = [System.Windows.Forms.Clipboard]::GetDataObject()
+            if ($data.GetDataPresent([System.Windows.Forms.DataFormats]::Html)) {
+              $html = $data.GetData([System.Windows.Forms.DataFormats]::Html)
+              Write-Output $html
             }
-          } catch (parseError) {
-            console.log("Could not parse HTML from error.stdout");
+          `;
+          const result = execSync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, {
+            encoding: "utf-8",
+            timeout: 10000,
+            maxBuffer: 10 * 1024 * 1024,
+          });
+          
+          if (result && result.includes("<")) {
+            // Windows clipboard HTML format has a header - extract just the HTML part
+            const htmlMatch = result.match(/<html[^>]*>[\s\S]*<\/html>/i) || 
+                             result.match(/<!--StartFragment-->[\s\S]*<!--EndFragment-->/i);
+            if (htmlMatch) {
+              htmlContent = htmlMatch[0]
+                .replace(/<!--StartFragment-->/g, "")
+                .replace(/<!--EndFragment-->/g, "");
+              console.log(`Retrieved HTML from Windows clipboard (${htmlContent.length} bytes)`);
+            } else if (result.includes("<")) {
+              // Fallback: use the raw result if it contains HTML
+              htmlContent = result;
+              console.log(`Retrieved raw HTML from Windows clipboard (${result.length} bytes)`);
+            }
           }
-        } else {
-          console.log("Could not retrieve HTML from macOS clipboard:", error.message);
+        } catch (error: any) {
+          console.log("Could not retrieve HTML from Windows clipboard:", error.message);
         }
       }
     }

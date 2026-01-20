@@ -239,26 +239,64 @@ export default async function PlainMarkdownCommand() {
     // For now, run the conversion inline with media removal
     let htmlContent: string | undefined = clipboardContent.html;
     
-    // Try macOS clipboard fallback if no HTML
+    // Platform-specific clipboard fallback if no HTML
     if (!htmlContent && clipboardContent.text) {
-      try {
-        const { execSync } = require("child_process");
-        const result = execSync("osascript -e 'the clipboard as «class HTML»'", {
-          encoding: "buffer",
-          timeout: 5000,
-          maxBuffer: 10 * 1024 * 1024,
-        });
-        
-        const htmlHex = result.toString().replace(/«data HTML|»/g, "").trim();
-        if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
-          htmlContent = Buffer.from(htmlHex, "hex").toString("utf-8");
-        }
-      } catch (error: any) {
-        if (error.stdout) {
-          const htmlHex = error.stdout.toString().replace(/«data HTML|»/g, "").trim();
+      const { execSync } = require("child_process");
+      const os = require("os");
+      const platform = os.platform();
+      
+      if (platform === "darwin") {
+        // macOS: Use AppleScript
+        try {
+          const result = execSync("osascript -e 'the clipboard as «class HTML»'", {
+            encoding: "buffer",
+            timeout: 5000,
+            maxBuffer: 10 * 1024 * 1024,
+          });
+          
+          const htmlHex = result.toString().replace(/«data HTML|»/g, "").trim();
           if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
             htmlContent = Buffer.from(htmlHex, "hex").toString("utf-8");
           }
+        } catch (error: any) {
+          if (error.stdout) {
+            const htmlHex = error.stdout.toString().replace(/«data HTML|»/g, "").trim();
+            if (htmlHex && htmlHex !== "missing value" && htmlHex.length > 20) {
+              htmlContent = Buffer.from(htmlHex, "hex").toString("utf-8");
+            }
+          }
+        }
+      } else if (platform === "win32") {
+        // Windows: Use PowerShell to get HTML from clipboard
+        try {
+          const psScript = `
+            Add-Type -AssemblyName System.Windows.Forms
+            $data = [System.Windows.Forms.Clipboard]::GetDataObject()
+            if ($data.GetDataPresent([System.Windows.Forms.DataFormats]::Html)) {
+              $html = $data.GetData([System.Windows.Forms.DataFormats]::Html)
+              Write-Output $html
+            }
+          `;
+          const result = execSync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, {
+            encoding: "utf-8",
+            timeout: 10000,
+            maxBuffer: 10 * 1024 * 1024,
+          });
+          
+          if (result && result.includes("<")) {
+            // Windows clipboard HTML format has a header - extract just the HTML part
+            const htmlMatch = result.match(/<html[^>]*>[\s\S]*<\/html>/i) || 
+                             result.match(/<!--StartFragment-->[\s\S]*<!--EndFragment-->/i);
+            if (htmlMatch) {
+              htmlContent = htmlMatch[0]
+                .replace(/<!--StartFragment-->/g, "")
+                .replace(/<!--EndFragment-->/g, "");
+            } else if (result.includes("<")) {
+              htmlContent = result;
+            }
+          }
+        } catch (error: any) {
+          console.log("Could not retrieve HTML from Windows clipboard:", error.message);
         }
       }
     }

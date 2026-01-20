@@ -72,45 +72,93 @@ ${html}
 }
 
 /**
- * Copies HTML content to clipboard as rich text using macOS clipboard
+ * Copies HTML content to clipboard as rich text
+ * Works on both macOS and Windows
  * This allows the content to be pasted as formatted text in apps like Google Docs
  */
 async function copyHtmlAsRichText(html: string): Promise<void> {
   const { execSync } = require("child_process");
+  const os = require("os");
+  const fs = require("fs");
+  const platform = os.platform();
 
-  // Convert HTML string to hex for AppleScript
-  const hexHtml = Buffer.from(html, "utf-8").toString("hex");
+  if (platform === "darwin") {
+    // macOS: Use AppleScript
+    // Convert HTML string to hex for AppleScript
+    const hexHtml = Buffer.from(html, "utf-8").toString("hex");
 
-  // Use AppleScript to set clipboard with HTML type
-  // This makes apps recognize it as rich text
-  const script = `
-    set theHTML to «data HTML${hexHtml}»
-    set the clipboard to theHTML
-  `;
+    // Use AppleScript to set clipboard with HTML type
+    // This makes apps recognize it as rich text
+    const script = `
+      set theHTML to «data HTML${hexHtml}»
+      set the clipboard to theHTML
+    `;
 
-  try {
-    execSync(`osascript -e '${script.replace(/'/g, "'\"'\"'")}'`, {
-      timeout: 5000,
-    });
-  } catch (error) {
-    // Fallback: try writing to a temp file and using pbcopy approach
-    const fs = require("fs");
-    const tempFile = "/tmp/raycast-richtext-temp.html";
-    fs.writeFileSync(tempFile, html);
-
-    // Use textutil to convert and copy
     try {
-      execSync(
-        `textutil -convert rtf -stdout "${tempFile}" | pbcopy -Prefer rtf`,
-        { timeout: 5000 }
-      );
-    } catch (fallbackError) {
-      // Last resort: copy as plain HTML (some apps will still render it)
-      await Clipboard.copy(html);
-      throw new Error(
-        "Could not copy as rich text, copied as HTML instead"
-      );
+      execSync(`osascript -e '${script.replace(/'/g, "'\"'\"'")}'`, {
+        timeout: 5000,
+      });
+    } catch (error) {
+      // Fallback: try writing to a temp file and using pbcopy approach
+      const tempFile = "/tmp/raycast-richtext-temp.html";
+      fs.writeFileSync(tempFile, html);
+
+      // Use textutil to convert and copy
+      try {
+        execSync(
+          `textutil -convert rtf -stdout "${tempFile}" | pbcopy -Prefer rtf`,
+          { timeout: 5000 }
+        );
+      } catch (fallbackError) {
+        // Last resort: copy as plain HTML (some apps will still render it)
+        await Clipboard.copy(html);
+        throw new Error(
+          "Could not copy as rich text, copied as HTML instead"
+        );
+      }
     }
+  } else if (platform === "win32") {
+    // Windows: Use PowerShell to set HTML on clipboard
+    const tempFile = os.tmpdir() + "\\raycast-richtext-temp.html";
+    fs.writeFileSync(tempFile, html, "utf-8");
+
+    // Windows clipboard HTML format requires a specific header
+    const startHtml = html.indexOf("<html");
+    const endHtml = html.length;
+    const startFragment = html.indexOf("<body");
+    const endFragment = html.lastIndexOf("</body>") + 7;
+
+    const header = [
+      "Version:0.9",
+      "StartHTML:" + String(97).padStart(10, "0"),
+      "EndHTML:" + String(97 + html.length).padStart(10, "0"),
+      "StartFragment:" + String(97 + (startFragment >= 0 ? startFragment : 0)).padStart(10, "0"),
+      "EndFragment:" + String(97 + (endFragment > 0 ? endFragment : html.length)).padStart(10, "0"),
+    ].join("\r\n") + "\r\n";
+
+    const clipboardHtml = header + html;
+    const clipboardFile = os.tmpdir() + "\\raycast-clipboard.html";
+    fs.writeFileSync(clipboardFile, clipboardHtml, "utf-8");
+
+    try {
+      // Use PowerShell to set HTML clipboard data
+      const psScript = `
+        Add-Type -AssemblyName System.Windows.Forms
+        $html = [System.IO.File]::ReadAllText('${clipboardFile.replace(/\\/g, "\\\\")}')
+        [System.Windows.Forms.Clipboard]::SetText($html, [System.Windows.Forms.TextDataFormat]::Html)
+      `;
+      execSync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, {
+        timeout: 10000,
+      });
+    } catch (error) {
+      // Fallback: just copy the HTML as text
+      await Clipboard.copy(html);
+      console.log("Windows clipboard fallback: copied HTML as text");
+    }
+  } else {
+    // Linux or other: fallback to plain HTML copy
+    await Clipboard.copy(html);
+    console.log("Unsupported platform, copied HTML as text");
   }
 }
 
