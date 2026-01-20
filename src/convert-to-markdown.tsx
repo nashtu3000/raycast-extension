@@ -770,62 +770,48 @@ export default async function Command() {
         }
       } else if (platform === "win32") {
         // Windows: Use PowerShell to get HTML from clipboard
+        // The correct method is GetText('Html') which returns HTML as a string directly
         try {
-          // PowerShell script to get HTML from clipboard
-          // Uses -sta flag for Single Threaded Apartment (required for clipboard access)
           const psScript = `
 Add-Type -AssemblyName System.Windows.Forms
-$data = [System.Windows.Forms.Clipboard]::GetDataObject()
-if ($data -and $data.GetDataPresent('HTML Format')) {
-  $html = $data.GetData('HTML Format')
-  if ($html) { Write-Output $html }
-} elseif ($data -and $data.GetDataPresent([System.Windows.Forms.DataFormats]::Html)) {
-  $html = $data.GetData([System.Windows.Forms.DataFormats]::Html)
-  if ($html) { Write-Output $html }
+if ([System.Windows.Forms.Clipboard]::ContainsText([System.Windows.Forms.TextDataFormat]::Html)) {
+  [System.Windows.Forms.Clipboard]::GetText([System.Windows.Forms.TextDataFormat]::Html)
 }
 `;
-          const result = execSync(`powershell -sta -NoProfile -Command "${psScript.replace(/"/g, '\\"').replace(/\r?\n/g, '; ')}"`, {
+          const result = execSync(`powershell -sta -NoProfile -Command "${psScript.replace(/"/g, '\\"').replace(/\r?\n/g, ' ')}"`, {
             encoding: "utf-8",
             timeout: 10000,
             maxBuffer: 10 * 1024 * 1024,
             windowsHide: true,
           });
           
-          console.log("Windows clipboard raw result length:", result?.length);
+          console.log("Windows clipboard result length:", result?.length || 0);
           
-          if (result && result.trim()) {
-            // Windows clipboard HTML format has a header like:
-            // Version:0.9
-            // StartHTML:0000000105
-            // EndHTML:0000001
-            // StartFragment:0000000141
-            // EndFragment:0000000
-            // <html>...</html>
-            
-            // Extract just the HTML part after the header
+          if (result && result.trim() && result.includes("<")) {
+            // Windows CF_HTML format includes a header - extract just the HTML
+            // Format: Version:0.9\r\nStartHTML:xxx\r\n...\r\n<html>...</html>
             const htmlMatch = result.match(/<html[^>]*>[\s\S]*<\/html>/i);
             if (htmlMatch) {
               htmlContent = htmlMatch[0];
               console.log(`Retrieved HTML from Windows clipboard (${htmlMatch[0].length} bytes)`);
             } else {
-              // Try to find fragment markers
+              // Try fragment markers (Google Docs uses these)
               const fragmentMatch = result.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
               if (fragmentMatch) {
                 htmlContent = fragmentMatch[1];
                 console.log(`Retrieved HTML fragment from Windows clipboard (${fragmentMatch[1].length} bytes)`);
-              } else if (result.includes("<")) {
-                // Last resort: use anything that looks like HTML
-                const anyHtml = result.substring(result.indexOf("<"));
-                if (anyHtml.length > 10) {
-                  htmlContent = anyHtml;
-                  console.log(`Retrieved partial HTML from Windows clipboard (${anyHtml.length} bytes)`);
+              } else {
+                // Use everything after the header
+                const htmlStart = result.indexOf("<");
+                if (htmlStart >= 0) {
+                  htmlContent = result.substring(htmlStart);
+                  console.log(`Retrieved raw HTML from Windows clipboard (${htmlContent.length} bytes)`);
                 }
               }
             }
           }
         } catch (error: any) {
           console.log("Could not retrieve HTML from Windows clipboard:", error.message);
-          console.log("Error details:", error.stderr?.toString() || "no stderr");
         }
       }
     }

@@ -271,23 +271,18 @@ export default async function PlainMarkdownCommand() {
         try {
           const psScript = `
 Add-Type -AssemblyName System.Windows.Forms
-$data = [System.Windows.Forms.Clipboard]::GetDataObject()
-if ($data -and $data.GetDataPresent('HTML Format')) {
-  $html = $data.GetData('HTML Format')
-  if ($html) { Write-Output $html }
-} elseif ($data -and $data.GetDataPresent([System.Windows.Forms.DataFormats]::Html)) {
-  $html = $data.GetData([System.Windows.Forms.DataFormats]::Html)
-  if ($html) { Write-Output $html }
+if ([System.Windows.Forms.Clipboard]::ContainsText([System.Windows.Forms.TextDataFormat]::Html)) {
+  [System.Windows.Forms.Clipboard]::GetText([System.Windows.Forms.TextDataFormat]::Html)
 }
 `;
-          const result = execSync(`powershell -sta -NoProfile -Command "${psScript.replace(/"/g, '\\"').replace(/\r?\n/g, '; ')}"`, {
+          const result = execSync(`powershell -sta -NoProfile -Command "${psScript.replace(/"/g, '\\"').replace(/\r?\n/g, ' ')}"`, {
             encoding: "utf-8",
             timeout: 10000,
             maxBuffer: 10 * 1024 * 1024,
             windowsHide: true,
           });
           
-          if (result && result.trim()) {
+          if (result && result.trim() && result.includes("<")) {
             const htmlMatch = result.match(/<html[^>]*>[\s\S]*<\/html>/i);
             if (htmlMatch) {
               htmlContent = htmlMatch[0];
@@ -295,7 +290,7 @@ if ($data -and $data.GetDataPresent('HTML Format')) {
               const fragmentMatch = result.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
               if (fragmentMatch) {
                 htmlContent = fragmentMatch[1];
-              } else if (result.includes("<")) {
+              } else {
                 htmlContent = result.substring(result.indexOf("<"));
               }
             }
