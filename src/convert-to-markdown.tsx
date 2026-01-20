@@ -778,11 +778,13 @@ export default async function Command() {
         const outputPath = path.join(tempDir, "raycast-clipboard-output.txt");
         
         const psScript = `
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Windows.Forms
 $clip = [System.Windows.Forms.Clipboard]
 if ($clip::ContainsText([System.Windows.Forms.TextDataFormat]::Html)) {
     $html = $clip::GetText([System.Windows.Forms.TextDataFormat]::Html)
-    [System.IO.File]::WriteAllText("${outputPath.replace(/\\/g, "\\\\")}", $html, [System.Text.Encoding]::UTF8)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText("${outputPath.replace(/\\/g, "\\\\")}", $html, $utf8NoBom)
 }
 `;
         try {
