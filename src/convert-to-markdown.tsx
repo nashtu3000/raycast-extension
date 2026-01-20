@@ -524,6 +524,15 @@ function escapeHtml(text: string): string {
 
 export default async function Command() {
   console.log("\n\n🚀 [v2026.01.20-FIXED] === EXTENSION STARTED ===\n");
+  
+  // Debug: Write to file to prove execution
+  try {
+    const fs = require("fs");
+    fs.writeFileSync("/tmp/raycast-debug.txt", `Extension started at ${new Date().toISOString()}\n`, { flag: "a" });
+  } catch (e) {
+    // Ignore file write errors
+  }
+  
   try {
     // Read clipboard content
     const clipboardContent = await Clipboard.read();
@@ -644,6 +653,15 @@ export default async function Command() {
     console.log("Markdown length:", markdown.length, "chars");
     console.log("Contains <table>?", markdown.includes("<table>"));
     console.log("Contains | --- |?", markdown.includes("| --- |"));
+
+    // Debug: Write markdown to file to verify it was generated
+    try {
+      const fs = require("fs");
+      fs.writeFileSync("/tmp/raycast-markdown-output.txt", markdown);
+      fs.appendFileSync("/tmp/raycast-debug.txt", `Markdown generated: ${markdown.length} chars, contains tables: ${markdown.includes("| --- |")}\n`);
+    } catch (e) {
+      // Ignore file write errors
+    }
 
     // Copy Markdown back to clipboard
     await Clipboard.copy(markdown);
