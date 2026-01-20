@@ -771,37 +771,61 @@ export default async function Command() {
       } else if (platform === "win32") {
         // Windows: Use PowerShell to get HTML from clipboard
         try {
+          // PowerShell script to get HTML from clipboard
+          // Uses -sta flag for Single Threaded Apartment (required for clipboard access)
           const psScript = `
-            Add-Type -AssemblyName System.Windows.Forms
-            $data = [System.Windows.Forms.Clipboard]::GetDataObject()
-            if ($data.GetDataPresent([System.Windows.Forms.DataFormats]::Html)) {
-              $html = $data.GetData([System.Windows.Forms.DataFormats]::Html)
-              Write-Output $html
-            }
-          `;
-          const result = execSync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, {
+Add-Type -AssemblyName System.Windows.Forms
+$data = [System.Windows.Forms.Clipboard]::GetDataObject()
+if ($data -and $data.GetDataPresent('HTML Format')) {
+  $html = $data.GetData('HTML Format')
+  if ($html) { Write-Output $html }
+} elseif ($data -and $data.GetDataPresent([System.Windows.Forms.DataFormats]::Html)) {
+  $html = $data.GetData([System.Windows.Forms.DataFormats]::Html)
+  if ($html) { Write-Output $html }
+}
+`;
+          const result = execSync(`powershell -sta -NoProfile -Command "${psScript.replace(/"/g, '\\"').replace(/\r?\n/g, '; ')}"`, {
             encoding: "utf-8",
             timeout: 10000,
             maxBuffer: 10 * 1024 * 1024,
+            windowsHide: true,
           });
           
-          if (result && result.includes("<")) {
-            // Windows clipboard HTML format has a header - extract just the HTML part
-            const htmlMatch = result.match(/<html[^>]*>[\s\S]*<\/html>/i) || 
-                             result.match(/<!--StartFragment-->[\s\S]*<!--EndFragment-->/i);
+          console.log("Windows clipboard raw result length:", result?.length);
+          
+          if (result && result.trim()) {
+            // Windows clipboard HTML format has a header like:
+            // Version:0.9
+            // StartHTML:0000000105
+            // EndHTML:0000001
+            // StartFragment:0000000141
+            // EndFragment:0000000
+            // <html>...</html>
+            
+            // Extract just the HTML part after the header
+            const htmlMatch = result.match(/<html[^>]*>[\s\S]*<\/html>/i);
             if (htmlMatch) {
-              htmlContent = htmlMatch[0]
-                .replace(/<!--StartFragment-->/g, "")
-                .replace(/<!--EndFragment-->/g, "");
+              htmlContent = htmlMatch[0];
               console.log(`Retrieved HTML from Windows clipboard (${htmlContent.length} bytes)`);
-            } else if (result.includes("<")) {
-              // Fallback: use the raw result if it contains HTML
-              htmlContent = result;
-              console.log(`Retrieved raw HTML from Windows clipboard (${result.length} bytes)`);
+            } else {
+              // Try to find fragment markers
+              const fragmentMatch = result.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
+              if (fragmentMatch) {
+                htmlContent = fragmentMatch[1];
+                console.log(`Retrieved HTML fragment from Windows clipboard (${htmlContent.length} bytes)`);
+              } else if (result.includes("<")) {
+                // Last resort: use anything that looks like HTML
+                const anyHtml = result.substring(result.indexOf("<"));
+                if (anyHtml.length > 10) {
+                  htmlContent = anyHtml;
+                  console.log(`Retrieved partial HTML from Windows clipboard (${htmlContent.length} bytes)`);
+                }
+              }
             }
           }
         } catch (error: any) {
           console.log("Could not retrieve HTML from Windows clipboard:", error.message);
+          console.log("Error details:", error.stderr?.toString() || "no stderr");
         }
       }
     }

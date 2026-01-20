@@ -119,38 +119,64 @@ async function copyHtmlAsRichText(html: string): Promise<void> {
     }
   } else if (platform === "win32") {
     // Windows: Use PowerShell to set HTML on clipboard
-    const tempFile = os.tmpdir() + "\\raycast-richtext-temp.html";
-    fs.writeFileSync(tempFile, html, "utf-8");
-
-    // Windows clipboard HTML format requires a specific header
-    const startHtml = html.indexOf("<html");
-    const endHtml = html.length;
-    const startFragment = html.indexOf("<body");
-    const endFragment = html.lastIndexOf("</body>") + 7;
-
+    // Windows clipboard HTML format requires a specific header with byte offsets
+    
+    // Calculate the header first (we need to know its length)
+    const headerTemplate = "Version:0.9\r\nStartHTML:SSSSSSSSSS\r\nEndHTML:EEEEEEEEEE\r\nStartFragment:FFFFFFFFFF\r\nEndFragment:GGGGGGGGGG\r\n";
+    const headerLength = headerTemplate.length;
+    
+    // Add fragment markers around the body content
+    const bodyStart = html.indexOf("<body");
+    const bodyContentStart = html.indexOf(">", bodyStart) + 1;
+    const bodyEnd = html.lastIndexOf("</body>");
+    
+    // Insert fragment markers
+    const htmlWithMarkers = 
+      html.substring(0, bodyContentStart) + 
+      "<!--StartFragment-->" + 
+      html.substring(bodyContentStart, bodyEnd) + 
+      "<!--EndFragment-->" + 
+      html.substring(bodyEnd);
+    
+    // Calculate offsets
+    const startHtml = headerLength;
+    const startFragment = headerLength + htmlWithMarkers.indexOf("<!--StartFragment-->") + 20;
+    const endFragment = headerLength + htmlWithMarkers.indexOf("<!--EndFragment-->");
+    const endHtml = headerLength + htmlWithMarkers.length;
+    
+    // Build the final header with actual offsets
     const header = [
       "Version:0.9",
-      "StartHTML:" + String(97).padStart(10, "0"),
-      "EndHTML:" + String(97 + html.length).padStart(10, "0"),
-      "StartFragment:" + String(97 + (startFragment >= 0 ? startFragment : 0)).padStart(10, "0"),
-      "EndFragment:" + String(97 + (endFragment > 0 ? endFragment : html.length)).padStart(10, "0"),
+      "StartHTML:" + String(startHtml).padStart(10, "0"),
+      "EndHTML:" + String(endHtml).padStart(10, "0"),
+      "StartFragment:" + String(startFragment).padStart(10, "0"),
+      "EndFragment:" + String(endFragment).padStart(10, "0"),
     ].join("\r\n") + "\r\n";
-
-    const clipboardHtml = header + html;
+    
+    const clipboardData = header + htmlWithMarkers;
     const clipboardFile = os.tmpdir() + "\\raycast-clipboard.html";
-    fs.writeFileSync(clipboardFile, clipboardHtml, "utf-8");
+    fs.writeFileSync(clipboardFile, clipboardData, "utf-8");
 
     try {
       // Use PowerShell to set HTML clipboard data
+      // -sta flag required for clipboard access
+      const escapedPath = clipboardFile.replace(/\\/g, "\\\\");
       const psScript = `
-        Add-Type -AssemblyName System.Windows.Forms
-        $html = [System.IO.File]::ReadAllText('${clipboardFile.replace(/\\/g, "\\\\")}')
-        [System.Windows.Forms.Clipboard]::SetText($html, [System.Windows.Forms.TextDataFormat]::Html)
-      `;
-      execSync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, {
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$html = [System.IO.File]::ReadAllText('${escapedPath}')
+$dataObj = New-Object System.Windows.Forms.DataObject
+$dataObj.SetData('HTML Format', $html)
+$dataObj.SetData([System.Windows.Forms.DataFormats]::Text, $html)
+[System.Windows.Forms.Clipboard]::SetDataObject($dataObj, $true)
+`;
+      execSync(`powershell -sta -NoProfile -Command "${psScript.replace(/"/g, '\\"').replace(/\r?\n/g, '; ')}"`, {
         timeout: 10000,
+        windowsHide: true,
       });
-    } catch (error) {
+      console.log("Windows: HTML copied to clipboard with rich text format");
+    } catch (error: any) {
+      console.log("Windows clipboard error:", error.message);
       // Fallback: just copy the HTML as text
       await Clipboard.copy(html);
       console.log("Windows clipboard fallback: copied HTML as text");

@@ -17,6 +17,8 @@ declare namespace Preferences {
   export type ConvertToMarkdown = ExtensionPreferences & {}
   /** Preferences accessible in the `convert-to-plain-markdown` command */
   export type ConvertToPlainMarkdown = ExtensionPreferences & {}
+  /** Preferences accessible in the `convert-markdown-to-richtext` command */
+  export type ConvertMarkdownToRichtext = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -24,5 +26,7 @@ declare namespace Arguments {
   export type ConvertToMarkdown = {}
   /** Arguments passed to the `convert-to-plain-markdown` command */
   export type ConvertToPlainMarkdown = {}
+  /** Arguments passed to the `convert-markdown-to-richtext` command */
+  export type ConvertMarkdownToRichtext = {}
 }
 

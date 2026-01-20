@@ -148,7 +148,7 @@ The extension has been extensively tested with real-world content:
 ### Requirements
 - **Node.js 22+** (run `node -v` to check)
 - **npm 7+**
-- **Raycast** installed on macOS
+- **Raycast** — macOS or Windows (beta)
 
 ### For Personal Use (Permanent Installation)
 

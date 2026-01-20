@@ -270,29 +270,34 @@ export default async function PlainMarkdownCommand() {
         // Windows: Use PowerShell to get HTML from clipboard
         try {
           const psScript = `
-            Add-Type -AssemblyName System.Windows.Forms
-            $data = [System.Windows.Forms.Clipboard]::GetDataObject()
-            if ($data.GetDataPresent([System.Windows.Forms.DataFormats]::Html)) {
-              $html = $data.GetData([System.Windows.Forms.DataFormats]::Html)
-              Write-Output $html
-            }
-          `;
-          const result = execSync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, {
+Add-Type -AssemblyName System.Windows.Forms
+$data = [System.Windows.Forms.Clipboard]::GetDataObject()
+if ($data -and $data.GetDataPresent('HTML Format')) {
+  $html = $data.GetData('HTML Format')
+  if ($html) { Write-Output $html }
+} elseif ($data -and $data.GetDataPresent([System.Windows.Forms.DataFormats]::Html)) {
+  $html = $data.GetData([System.Windows.Forms.DataFormats]::Html)
+  if ($html) { Write-Output $html }
+}
+`;
+          const result = execSync(`powershell -sta -NoProfile -Command "${psScript.replace(/"/g, '\\"').replace(/\r?\n/g, '; ')}"`, {
             encoding: "utf-8",
             timeout: 10000,
             maxBuffer: 10 * 1024 * 1024,
+            windowsHide: true,
           });
           
-          if (result && result.includes("<")) {
-            // Windows clipboard HTML format has a header - extract just the HTML part
-            const htmlMatch = result.match(/<html[^>]*>[\s\S]*<\/html>/i) || 
-                             result.match(/<!--StartFragment-->[\s\S]*<!--EndFragment-->/i);
+          if (result && result.trim()) {
+            const htmlMatch = result.match(/<html[^>]*>[\s\S]*<\/html>/i);
             if (htmlMatch) {
-              htmlContent = htmlMatch[0]
-                .replace(/<!--StartFragment-->/g, "")
-                .replace(/<!--EndFragment-->/g, "");
-            } else if (result.includes("<")) {
-              htmlContent = result;
+              htmlContent = htmlMatch[0];
+            } else {
+              const fragmentMatch = result.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
+              if (fragmentMatch) {
+                htmlContent = fragmentMatch[1];
+              } else if (result.includes("<")) {
+                htmlContent = result.substring(result.indexOf("<"));
+              }
             }
           }
         } catch (error: any) {
