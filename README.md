@@ -1,6 +1,6 @@
 # Markdown Converter for Raycast
 
-**v1.0 - Now fully working on macOS and Windows!** 🎉
+**v1.1 - Now fully working on macOS and Windows!** 🎉
 
 A powerful Raycast extension for **bidirectional conversion** between rich text and Markdown. Convert clipboard content from **Google Docs, Sheets, Word, Notion, and websites** to clean Markdown—or convert Markdown back to rich text for pasting anywhere.
 
@@ -9,6 +9,31 @@ A powerful Raycast extension for **bidirectional conversion** between rich text 
 - ✅ **macOS**: Fully supported via AppleScript clipboard access
 - ✅ **Windows**: Fully supported via PowerShell with proper UTF-8 encoding
 - ✅ **Raycast Windows Beta**: Works perfectly in the new Windows version of Raycast
+
+## 🤖 Perfect for AI Workflows
+
+This extension is essential when working with AI assistants like ChatGPT, Claude, or Cursor:
+
+**Research & Documentation:**
+- Copy research from Google Docs → Convert to Markdown → Paste into AI chat for analysis
+- Extract tables from websites → Clean Markdown format → Feed to AI for data processing
+- Convert meeting notes to Markdown for AI summarization
+
+**Content Creation:**
+- AI generates Markdown content → Convert to Rich Text → Paste into Google Docs/Word
+- Preserve formatting when moving content between AI tools and traditional editors
+- Clean conversion of complex tables and lists for AI context
+
+**Development Workflows:**
+- Copy documentation from Notion/Confluence → Markdown → Add to codebase
+- Convert API responses to readable Markdown for AI code review
+- Transform rich text specs into Markdown for version control
+
+**Why Markdown for AI?**
+- **Token Efficient**: Markdown uses fewer tokens than HTML/rich text
+- **Clean Context**: No styling noise, just pure content structure
+- **Portable**: Works across all AI platforms and tools
+- **Editable**: Easy to modify before sending to AI
 
 ## ✨ Features
 
@@ -158,7 +183,7 @@ The extension has been extensively tested with real-world content:
 - **npm 7+**
 - **Raycast** — macOS or Windows (beta)
 
-> 🎉 **v1.0 is production-ready!** Tested and working on both macOS and Windows with full UTF-8 support for all languages including emojis, Romanian, and other special characters.
+> 🎉 **v1.1 is production-ready!** Tested and working on both macOS and Windows with full UTF-8 support for all languages including emojis, Romanian, and other special characters.
 
 ### For Personal Use (Permanent Installation)
 
@@ -228,29 +253,15 @@ Perfect for testing before using in Raycast or debugging issues. See [`TESTING.m
 - Try "Reload Extensions" in Raycast (Cmd+Shift+R)
 - If developing: make sure `npm run dev` is running
 
-### Bold/italic formatting lost?
-- ✅ **Fixed!** Now converts Google Docs inline styles (`font-weight:700`)
-- Works with both `<strong>` tags and `style` attributes
+### Garbled characters on Windows?
+- Update to latest version: `git pull && npm run build`
+- Supports all Unicode characters including Romanian diacritics and emojis
+- UTF-8 encoding is properly handled in v1.1+
 
-### Links not preserved?
-- ✅ **Fixed!** All hyperlinks now preserved during conversion
-- Table of contents links work perfectly
-
-### Tables showing as raw HTML?
-- ✅ **Fixed!** All tables convert to Markdown (tested with 32-table document)
-- Colspan/rowspan cells are intelligently duplicated
-
-### Line breaks missing?
-- ✅ **Fixed!** `<br>` tags preserve as Markdown line breaks (`  \n`)
-- Won't collide with `<b>` to `<strong>` conversion
-
-### Icon garbage in list items?
-- ✅ **Fixed!** Font Awesome and icon elements automatically removed
-
-### Garbled characters on Windows (ș, ț, ă, emojis)?
-- ✅ **Fixed in v1.0!** Proper UTF-8 encoding now handles all languages
-- Supports Romanian diacritics, emojis, and all Unicode characters
-- If issues persist, make sure you're on the latest version: `git pull && npm run build`
+### Formatting not converting correctly?
+- Supported: bold, italic, headings, tables, lists, links, line breaks
+- Works with both semantic HTML tags and inline styles
+- Google Docs inline styles (font-weight:700) are properly converted
 
 ## 📄 License
 
