@@ -782,15 +782,21 @@ Add-Type -AssemblyName System.Windows.Forms
 $dataObj = [System.Windows.Forms.Clipboard]::GetDataObject()
 if ($dataObj -and $dataObj.GetDataPresent("HTML Format")) {
     $stream = $dataObj.GetData("HTML Format")
+    $content = $null
     if ($stream -is [System.IO.MemoryStream]) {
+        # Read raw bytes and decode as UTF-8
         $bytes = $stream.ToArray()
         $utf8 = [System.Text.Encoding]::UTF8
         $content = $utf8.GetString($bytes)
+    } elseif ($stream -is [string]) {
+        # If it's already a string, try to fix encoding if it was read wrong
+        # Check if it looks like it was read as Windows-1252 instead of UTF-8
+        $bytes = [System.Text.Encoding]::GetEncoding(1252).GetBytes($stream)
+        $content = [System.Text.Encoding]::UTF8.GetString($bytes)
+    }
+    if ($content) {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText("${outputPath.replace(/\\/g, "\\\\")}", $content, $utf8NoBom)
-    } elseif ($stream -is [string]) {
-        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-        [System.IO.File]::WriteAllText("${outputPath.replace(/\\/g, "\\\\")}", $stream, $utf8NoBom)
     }
 }
 `;
