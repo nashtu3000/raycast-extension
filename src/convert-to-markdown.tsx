@@ -784,10 +784,13 @@ if ($dataObj -and $dataObj.GetDataPresent("HTML Format")) {
     $stream = $dataObj.GetData("HTML Format")
     if ($stream -is [System.IO.MemoryStream]) {
         $bytes = $stream.ToArray()
-        [System.IO.File]::WriteAllBytes("${outputPath.replace(/\\/g, "\\\\")}", $bytes)
+        $utf8 = [System.Text.Encoding]::UTF8
+        $content = $utf8.GetString($bytes)
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText("${outputPath.replace(/\\/g, "\\\\")}", $content, $utf8NoBom)
     } elseif ($stream -is [string]) {
-        $utf8 = New-Object System.Text.UTF8Encoding $false
-        [System.IO.File]::WriteAllText("${outputPath.replace(/\\/g, "\\\\")}", $stream, $utf8)
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText("${outputPath.replace(/\\/g, "\\\\")}", $stream, $utf8NoBom)
     }
 }
 `;
